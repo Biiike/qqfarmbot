@@ -49,6 +49,19 @@ export async function startAdminServer(input?: {
 
   const userStore = new UserStore(dataDir);
 
+  if (await userStore.needsBootstrap()) {
+    try {
+      await userStore.bootstrapAdmin(env.BOOTSTRAP_ADMIN_USERNAME, env.BOOTSTRAP_ADMIN_PASSWORD);
+      await logBuffer.append({
+        level: "info",
+        scope: "AUTH",
+        message: `Bootstrap admin created: ${env.BOOTSTRAP_ADMIN_USERNAME}`,
+      });
+    } catch {
+      // ignore bootstrap race or transient state
+    }
+  }
+
   const configStore = new ConfigStore(dataDir);
   let configCache = await configStore.get();
 
