@@ -128,6 +128,50 @@ dist/release-web/
 
 ## 部署（基于 release-web）
 
+### 方式 D：Zeabur 免费版（无数据库 / 无持久硬盘）
+
+本项目已适配无状态部署：
+
+- 不依赖数据库（仍使用 JSON 存储）
+- 默认 `DATA_DIR=/tmp/qqfarmbot/admin`（容器临时目录，重启会丢失）
+- 服务启动时若无用户，会自动使用环境变量创建管理员账号
+
+> 由于 Zeabur 免费环境无持久磁盘，以下数据在重启/重建后会重置：用户、运行配置、日志、统计计数。
+
+#### 1）在 Zeabur 创建服务
+
+- 导入本仓库
+- 运行时选择 Node.js
+- Build Command 留空（或 `npm install`）
+- Start Command 设置为：
+
+```bash
+npm run start:zeabur
+```
+
+#### 2）环境变量（至少配置以下）
+
+```bash
+HOST=0.0.0.0
+PORT=8787
+JWT_SECRET=请替换成16位以上随机字符串
+BOOTSTRAP_ADMIN_USERNAME=admin
+BOOTSTRAP_ADMIN_PASSWORD=请替换成强密码(>=8位)
+DATA_DIR=/tmp/qqfarmbot/admin
+```
+
+可选：
+
+```bash
+QRLIB_BASE_URL=http://127.0.0.1:5656
+```
+
+#### 3）访问与使用
+
+- 部署完成后打开 Zeabur 分配的域名
+- 首次冷启动会自动创建管理员账号（即上面的 `BOOTSTRAP_ADMIN_*`）
+- 重启后如果数据丢失，属于免费无盘环境预期行为，直接用同一组环境变量重新登录即可
+
 ### 方式 A：Linux 直接运行（run.sh）
 
 1. 上传 `dist/release-web/` 整个目录到服务器（例如 `/www/wwwroot/qqfarm/`）

@@ -10,6 +10,9 @@
   "scripts": {
     "bot": "node client.js",
     "dev": "node scripts/dev.mjs",
+    "build": "npm --workspace apps/admin-server run build && npm --workspace apps/admin-web run build",
+    "start": "node apps/admin-server/dist/index.js",
+    "start:zeabur": "npm run build && npm run start",
     "admin:server": "npm --workspace apps/admin-server run dev",
     "admin:web": "npm --workspace apps/admin-web run dev",
     "release:web": "node scripts/release-web.mjs",
