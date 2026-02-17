@@ -19,6 +19,8 @@ type StoredRuntimeConfig = {
     autoFriendFarm?: boolean;
     autoTask: boolean;
     autoSell: boolean;
+    autoExpandLand?: boolean;
+    autoUpgradeRedLand?: boolean;
   };
   farming?: {
     forceLowestLevelCrop: boolean;
@@ -71,6 +73,8 @@ const StoredRuntimeConfigSchema = z.object({
       autoFriendFarm: z.boolean().optional(),
       autoTask: z.boolean(),
       autoSell: z.boolean(),
+      autoExpandLand: z.boolean().optional(),
+      autoUpgradeRedLand: z.boolean().optional(),
     })
     .optional(),
   farming: z
@@ -188,10 +192,14 @@ export class ConfigStore {
       autoFriendFarm: true,
       autoTask: true,
       autoSell: true,
+      autoExpandLand: false,
+      autoUpgradeRedLand: false,
     };
     const automation: NonNullable<RuntimeConfig["automation"]> = {
       ...storedAutomation,
       autoFriendFarm: storedAutomation.autoFriendFarm ?? true,
+      autoExpandLand: storedAutomation.autoExpandLand ?? false,
+      autoUpgradeRedLand: storedAutomation.autoUpgradeRedLand ?? false,
     };
     const farming = stored.farming ?? { forceLowestLevelCrop: false, forceLatestLevelCrop: false, disableAutoRecommend: false };
     return {
@@ -249,6 +257,8 @@ export class ConfigStore {
         autoFriendFarm: true,
         autoTask: true,
         autoSell: true,
+        autoExpandLand: false,
+        autoUpgradeRedLand: false,
       },
       farming: { forceLowestLevelCrop: false, forceLatestLevelCrop: false, disableAutoRecommend: false },
       ui: { wallpaper: { sync: true, mode: "local" } },
@@ -280,6 +290,8 @@ export class ConfigStore {
         autoFriendFarm: true,
         autoTask: true,
         autoSell: true,
+        autoExpandLand: false,
+        autoUpgradeRedLand: false,
       },
       farming: { forceLowestLevelCrop: false, forceLatestLevelCrop: false, disableAutoRecommend: false },
       ui: { wallpaper: { sync: true, mode: "local" } },
@@ -306,7 +318,21 @@ export class ConfigStore {
       selfIntervalSecMax: parsed.selfIntervalSecMax,
       friendIntervalSecMin: parsed.friendIntervalSecMin,
       friendIntervalSecMax: parsed.friendIntervalSecMax,
-      automation: parsed.automation ?? current.automation,
+      automation: parsed.automation
+        ? {
+            autoHarvest: parsed.automation.autoHarvest ?? current.automation?.autoHarvest ?? true,
+            autoFertilize: parsed.automation.autoFertilize ?? current.automation?.autoFertilize ?? true,
+            autoWater: parsed.automation.autoWater ?? current.automation?.autoWater ?? true,
+            autoWeed: parsed.automation.autoWeed ?? current.automation?.autoWeed ?? true,
+            autoBug: parsed.automation.autoBug ?? current.automation?.autoBug ?? true,
+            autoPlant: parsed.automation.autoPlant ?? current.automation?.autoPlant ?? true,
+            autoFriendFarm: parsed.automation.autoFriendFarm ?? current.automation?.autoFriendFarm ?? true,
+            autoTask: parsed.automation.autoTask ?? current.automation?.autoTask ?? true,
+            autoSell: parsed.automation.autoSell ?? current.automation?.autoSell ?? true,
+            autoExpandLand: parsed.automation.autoExpandLand ?? current.automation?.autoExpandLand ?? false,
+            autoUpgradeRedLand: parsed.automation.autoUpgradeRedLand ?? current.automation?.autoUpgradeRedLand ?? false,
+          }
+        : current.automation,
       farming: parsed.farming
         ? {
             forceLowestLevelCrop: parsed.farming.forceLowestLevelCrop,
