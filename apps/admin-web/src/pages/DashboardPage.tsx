@@ -109,6 +109,17 @@ function formatGold(v: number): string {
   return Math.floor(v).toLocaleString();
 }
 
+function formatEta(sec: number): string {
+  const total = Math.max(0, Math.floor(sec));
+  const d = Math.floor(total / 86400);
+  const h = Math.floor((total % 86400) / 3600);
+  const m = Math.floor((total % 3600) / 60);
+
+  if (d > 0) return `${d}天${h}小时`;
+  if (h > 0) return `${h}小时${m}分钟`;
+  return `${Math.max(1, m)}分钟`;
+}
+
 export function DashboardPage(): React.JSX.Element {
   const data = useData();
   const { snapshot } = data;
@@ -588,6 +599,34 @@ export function DashboardPage(): React.JSX.Element {
     return { cur, need, left: Math.max(0, left) };
   }, [user]);
 
+  const levelEta = useMemo(() => {
+    if (!levelProgress || !snapshot || !counters) return null;
+    if (levelProgress.left <= 0) return { sec: 0, expPerHour: 0 };
+
+    const startedAtIso = snapshot.bot?.startedAt;
+    if (!startedAtIso) return null;
+    const startedAtMs = Date.parse(startedAtIso);
+    const snapshotMs = Date.parse(snapshot.ts);
+    if (!Number.isFinite(startedAtMs) || !Number.isFinite(snapshotMs) || snapshotMs <= startedAtMs) return null;
+
+    const elapsedSec = (snapshotMs - startedAtMs) / 1000;
+    if (!Number.isFinite(elapsedSec) || elapsedSec < 60) return null;
+
+    const gainedExp = Number(counters.gains.exp);
+    if (!Number.isFinite(gainedExp) || gainedExp <= 0) return null;
+
+    const expPerSec = gainedExp / elapsedSec;
+    if (!Number.isFinite(expPerSec) || expPerSec <= 0) return null;
+
+    const etaSec = levelProgress.left / expPerSec;
+    if (!Number.isFinite(etaSec) || etaSec < 0) return null;
+
+    return {
+      sec: etaSec,
+      expPerHour: expPerSec * 3600,
+    };
+  }, [levelProgress, snapshot, counters]);
+
   const logSelected = useMemo(() => {
     if (!logSelectedId) return null;
     return data.logs.find((x) => x.id === logSelectedId) ?? null;
@@ -929,6 +968,13 @@ export function DashboardPage(): React.JSX.Element {
                         ? `经验 ${formatGold(user.exp)}`
                         : `还差 ${Math.max(0, Math.floor(levelProgress.left))} 点(${Math.floor(levelProgress.cur)}/${Math.floor(levelProgress.need)})`}
                   </div>
+                  {user && levelProgress ? (
+                    <div className="muted" style={{ marginTop: 4, lineHeight: 1.3 }}>
+                      {levelEta
+                        ? `按当前效率，约 ${formatEta(levelEta.sec)} 升级（${Math.max(0, Math.floor(levelEta.expPerHour))} 经验/小时）`
+                        : "经验增长数据不足，暂无法估算升级时间"}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </GlassCard>
@@ -979,7 +1025,18 @@ export function DashboardPage(): React.JSX.Element {
                               {task.desc}
                             </div>
                             {task.rewards?.length > 0 && (
-                              <div style={{ marginTop: "2px", fontSize: "10px", opacity: 0.7 }}>
+                              <div
+                                style={{
+                                  marginTop: "2px",
+                                  fontSize: "10px",
+                                  opacity: 0.7,
+                                  maxWidth: "100%",
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                                title={`奖励: ${task.rewards.map((r) => `${r.name || r.id}x${r.count}`).join(" ")}`}
+                              >
                                 奖励: {task.rewards.map((r) => `${r.name || r.id}x${r.count}`).join(" ")}
                               </div>
                             )}
