@@ -7,6 +7,7 @@ const EnvSchema = z.object({
   HOST: z.string().default("0.0.0.0"),
   JWT_SECRET: z.string().min(16).default("dev-secret-change-me-now"),
   DATA_DIR: z.string().default(defaultDataDir),
+  LOG_FILE_MAX_MB: z.coerce.number().int().min(0).max(1024).default(process.env.NODE_ENV === "production" ? 20 : 0),
   BOOTSTRAP_ADMIN_USERNAME: z.string().default("admin"),
   BOOTSTRAP_ADMIN_PASSWORD: z.string().min(8).default("admin12345"),
 });

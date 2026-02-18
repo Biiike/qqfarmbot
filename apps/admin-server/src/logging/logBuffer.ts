@@ -16,11 +16,31 @@ export class LogBuffer {
   private readonly entries: LogEntry[] = [];
   private readonly maxEntries: number;
   private readonly logFilePath: string;
+  private readonly maxFileBytes: number;
+  private readonly sizeCheckEvery: number;
+  private appendSinceSizeCheck = 0;
   private listeners = new Set<(entry: LogEntry) => void>();
 
-  constructor(opts: { dataDir: string; maxEntries?: number }) {
+  constructor(opts: { dataDir: string; maxEntries?: number; maxFileBytes?: number; sizeCheckEvery?: number }) {
     this.maxEntries = opts.maxEntries ?? 3000;
     this.logFilePath = path.join(opts.dataDir, "logs.ndjson");
+    this.maxFileBytes = Number.isFinite(opts.maxFileBytes) ? Math.max(0, Math.floor(opts.maxFileBytes ?? 0)) : 0;
+    this.sizeCheckEvery = Number.isFinite(opts.sizeCheckEvery) ? Math.max(1, Math.floor(opts.sizeCheckEvery ?? 0)) : 30;
+  }
+
+  private async ensureFileWithinLimit(): Promise<void> {
+    if (!this.maxFileBytes) return;
+    this.appendSinceSizeCheck += 1;
+    if (this.appendSinceSizeCheck < this.sizeCheckEvery) return;
+    this.appendSinceSizeCheck = 0;
+
+    try {
+      const stat = await fs.stat(this.logFilePath);
+      if (stat.size < this.maxFileBytes) return;
+      await fs.writeFile(this.logFilePath, "", "utf-8");
+    } catch {
+      return;
+    }
   }
 
   /**
@@ -40,6 +60,7 @@ export class LogBuffer {
     if (this.entries.length > this.maxEntries) this.entries.shift();
 
     await ensureDir(path.dirname(this.logFilePath));
+    await this.ensureFileWithinLimit();
     await fs.appendFile(this.logFilePath, `${JSON.stringify(entry)}\n`, "utf-8");
 
     for (const fn of this.listeners) fn(entry);

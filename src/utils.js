@@ -53,13 +53,15 @@ function toTimeSec(val) {
 }
 
 // ============ 日志 ============
+const stdoutEnabled = process.env.DISABLE_STDOUT_LOG !== '1';
+
 function log(tag, msg) {
-    console.log(`[${now()}] [${tag}] ${msg}`);
+    if (stdoutEnabled) console.log(`[${now()}] [${tag}] ${msg}`);
     botEvents.emit('log', { level: 'info', tag, message: String(msg) });
 }
 
 function logWarn(tag, msg) {
-    console.log(`[${now()}] [${tag}] ⚠ ${msg}`);
+    if (stdoutEnabled) console.log(`[${now()}] [${tag}] ⚠ ${msg}`);
     botEvents.emit('log', { level: 'warn', tag, message: String(msg) });
 }
 

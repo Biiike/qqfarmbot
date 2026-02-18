@@ -43,8 +43,9 @@ export async function startAdminServer(input?: {
   const env = input?.env ?? getEnv();
   const projectRoot = input?.projectRoot ?? getProjectRoot();
   const dataDir = path.isAbsolute(env.DATA_DIR) ? env.DATA_DIR : path.resolve(projectRoot, env.DATA_DIR);
+  const maxLogFileBytes = Math.max(0, Math.floor(Number(env.LOG_FILE_MAX_MB ?? 0) * 1024 * 1024));
 
-  const logBuffer = new LogBuffer({ dataDir });
+  const logBuffer = new LogBuffer({ dataDir, maxFileBytes: maxLogFileBytes });
   await logBuffer.append({ level: "info", scope: "SERVER", message: "Admin server booting..." });
 
   const userStore = new UserStore(dataDir);
