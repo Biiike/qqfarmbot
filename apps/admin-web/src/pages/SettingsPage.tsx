@@ -44,14 +44,37 @@ type Config = {
     from: string;
     to: string;
   };
+  logs?: {
+    autoClearEnabled: boolean;
+    autoClearIntervalHours: number;
+  };
 };
 type ConfigReply = { config: Config };
+type LogsMetaReply = {
+  sizeBytes: number;
+  path: string;
+  autoClearEnabled: boolean;
+  autoClearIntervalHours: number;
+};
+
+function formatBytes(size: number): string {
+  if (!Number.isFinite(size) || size < 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let n = size;
+  let idx = 0;
+  while (n >= 1024 && idx < units.length - 1) {
+    n /= 1024;
+    idx += 1;
+  }
+  if (idx === 0) return `${Math.floor(n)} ${units[idx]}`;
+  return `${n.toFixed(2)} ${units[idx]}`;
+}
 
 /**
  * 表单提示图标。
  */
 function Hint(props: { text: string }): React.JSX.Element {
-  return <span className="fieldHint" title={props.text} aria-label={props.text} />;
+  return <span className="fieldHint" title={props.text} />;
 }
 
 /**
@@ -94,6 +117,16 @@ export function SettingsPage(): React.JSX.Element {
 
   const [wallpaperMode, setWallpaperMode] = useState<"local" | "off">("local");
 
+  const [logSizeBytes, setLogSizeBytes] = useState(0);
+  const [logPath, setLogPath] = useState("/data/admin/logs.ndjson");
+  const [logAutoClearEnabled, setLogAutoClearEnabled] = useState(false);
+  const [logAutoClearIntervalHours, setLogAutoClearIntervalHours] = useState(24);
+  const [logMetaLoading, setLogMetaLoading] = useState(false);
+  const [logSaving, setLogSaving] = useState(false);
+  const [logClearing, setLogClearing] = useState(false);
+  const [logError, setLogError] = useState<string | null>(null);
+  const [logOk, setLogOk] = useState<string | null>(null);
+
   const canSaveSmtp = useMemo(() => {
     if (smtpSaving) return false;
     if (!smtpEnabled) return true;
@@ -106,6 +139,11 @@ export function SettingsPage(): React.JSX.Element {
 
   const canChangeWallpaper = useMemo(() => !wallpaperSaving && !loading, [loading, wallpaperSaving]);
   const canUseConfigIo = useMemo(() => !configIoSaving && !loading, [configIoSaving, loading]);
+  const canSaveLogPolicy = useMemo(() => {
+    if (loading || logSaving) return false;
+    if (!Number.isFinite(logAutoClearIntervalHours) || logAutoClearIntervalHours < 1) return false;
+    return true;
+  }, [loading, logAutoClearIntervalHours, logSaving]);
 
   /**
    * 将服务端配置同步到本地表单状态。
@@ -129,6 +167,8 @@ export function SettingsPage(): React.JSX.Element {
     setSmtpTo(smtp?.to ?? "");
     const ui = config.ui?.wallpaper;
     setWallpaperMode(ui?.mode === "off" ? "off" : "local");
+    setLogAutoClearEnabled(Boolean(config.logs?.autoClearEnabled ?? false));
+    setLogAutoClearIntervalHours(Number(config.logs?.autoClearIntervalHours ?? 24));
   }, []);
 
   /**
@@ -151,6 +191,86 @@ export function SettingsPage(): React.JSX.Element {
       setLoading(false);
     }
   }, [auth.token, syncFormWithConfig]);
+
+  const loadLogMeta = useCallback(async (): Promise<void> => {
+    setLogError(null);
+    setLogMetaLoading(true);
+    try {
+      const res = await apiFetch<LogsMetaReply>("/api/logs/meta", { token: auth.token });
+      setLogSizeBytes(Number.isFinite(res.sizeBytes) ? Math.max(0, Math.floor(res.sizeBytes)) : 0);
+      setLogPath(res.path || "/data/admin/logs.ndjson");
+      setLogAutoClearEnabled(Boolean(res.autoClearEnabled));
+      setLogAutoClearIntervalHours(Number.isFinite(res.autoClearIntervalHours) ? Math.max(1, Math.floor(res.autoClearIntervalHours)) : 24);
+    } catch (e: unknown) {
+      const err = e as ApiError;
+      setLogError(err.message ?? err.code ?? "日志信息读取失败");
+    } finally {
+      setLogMetaLoading(false);
+    }
+  }, [auth.token]);
+
+  const saveLogPolicy = useCallback(async (): Promise<void> => {
+    setLogError(null);
+    setLogOk(null);
+    setLogSaving(true);
+    try {
+      const base = loadedConfig ?? {
+        platform,
+        selfIntervalSecMin,
+        selfIntervalSecMax,
+        friendIntervalSecMin,
+        friendIntervalSecMax,
+      };
+      const body: Config = {
+        platform: base.platform,
+        selfIntervalSecMin: base.selfIntervalSecMin,
+        selfIntervalSecMax: base.selfIntervalSecMax,
+        friendIntervalSecMin: base.friendIntervalSecMin,
+        friendIntervalSecMax: base.friendIntervalSecMax,
+        logs: {
+          autoClearEnabled: logAutoClearEnabled,
+          autoClearIntervalHours: Math.max(1, Math.floor(logAutoClearIntervalHours || 1)),
+        },
+      };
+      const res = await apiFetch<ConfigReply>("/api/config", { method: "PUT", token: auth.token, body });
+      syncFormWithConfig(res.config);
+      setLogOk("日志策略已保存");
+      await loadLogMeta();
+    } catch (e: unknown) {
+      const err = e as ApiError;
+      setLogError(err.message ?? err.code ?? "日志策略保存失败");
+    } finally {
+      setLogSaving(false);
+    }
+  }, [
+    auth.token,
+    friendIntervalSecMax,
+    friendIntervalSecMin,
+    loadedConfig,
+    logAutoClearEnabled,
+    logAutoClearIntervalHours,
+    loadLogMeta,
+    platform,
+    selfIntervalSecMax,
+    selfIntervalSecMin,
+    syncFormWithConfig,
+  ]);
+
+  const clearLogsNow = useCallback(async (): Promise<void> => {
+    setLogError(null);
+    setLogOk(null);
+    setLogClearing(true);
+    try {
+      await apiFetch<{ ok: boolean }>("/api/logs/clear", { method: "POST", token: auth.token });
+      setLogOk("日志已清空");
+      await loadLogMeta();
+    } catch (e: unknown) {
+      const err = e as ApiError;
+      setLogError(err.message ?? err.code ?? "日志清空失败");
+    } finally {
+      setLogClearing(false);
+    }
+  }, [auth.token, loadLogMeta]);
 
   /**
    * 保存 SMTP 邮件通知配置。
@@ -380,7 +500,8 @@ export function SettingsPage(): React.JSX.Element {
 
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadLogMeta();
+  }, [load, loadLogMeta]);
 
   return (
     <div className="grid settingsPage">
@@ -436,7 +557,7 @@ export function SettingsPage(): React.JSX.Element {
               </div>
               <input className="fieldInput" type="file" accept="application/json,.json" onChange={(e) => void onImportConfig(e.target.files)} disabled={!canUseConfigIo} />
             </label>
-            <label className="field">
+            <div className="field">
               <div className="fieldRow">
                 <div className="fieldLabel">导出配置</div>
                 <Hint text="生成 JSON 文件用于备份或跨设备迁移。" />
@@ -446,10 +567,70 @@ export function SettingsPage(): React.JSX.Element {
                   {configIoSaving ? "处理中..." : "导出 JSON"}
                 </Button>
               </div>
-            </label>
+            </div>
           </div>
           {configIoError ? <div className="formError">{configIoError}</div> : null}
           {configIoOk ? <div className="formOk">{configIoOk}</div> : null}
+        </GlassCard>
+      </div>
+
+      <div className="gridSpan2">
+        <GlassCard
+          title="日志管理"
+          subtitle="显示当前 logs.ndjson 大小，支持手动清空与定时自动清理"
+          right={
+            <div className="row">
+              <Button size="sm" variant="ghost" onClick={() => void loadLogMeta()} disabled={logMetaLoading || logSaving || logClearing}>
+                {logMetaLoading ? "刷新中..." : "刷新"}
+              </Button>
+              <Button size="sm" variant="danger" onClick={() => void clearLogsNow()} disabled={logClearing || logSaving || logMetaLoading}>
+                {logClearing ? "清空中..." : "清空日志"}
+              </Button>
+              <Button size="sm" variant="primary" onClick={() => void saveLogPolicy()} disabled={!canSaveLogPolicy}>
+                {logSaving ? "保存中..." : "保存策略"}
+              </Button>
+            </div>
+          }
+          className="compactCard"
+        >
+          <div className="formGrid">
+            <div className="stat">
+              <div className="statK">当前日志大小</div>
+              <div className="statV">{formatBytes(logSizeBytes)}</div>
+              <div className="muted" style={{ marginTop: 4, wordBreak: "break-all" }}>
+                {logPath}
+              </div>
+            </div>
+
+            <label className="field">
+              <div className="fieldRow">
+                <div className="fieldLabel">定时清理</div>
+                <Hint text="开启后服务会按间隔自动清空日志文件，避免持续增长占满磁盘。" />
+              </div>
+              <select className="fieldInput select" value={logAutoClearEnabled ? "on" : "off"} onChange={(e) => setLogAutoClearEnabled(e.target.value === "on")}>
+                <option value="off">关闭</option>
+                <option value="on">开启</option>
+              </select>
+            </label>
+
+            <label className="field">
+              <div className="fieldRow">
+                <div className="fieldLabel">清理间隔（小时）</div>
+                <Hint text="建议 6~24 小时。最小 1 小时。" />
+              </div>
+              <input
+                className="fieldInput"
+                type="number"
+                min={1}
+                max={24 * 30}
+                value={logAutoClearIntervalHours}
+                onChange={(e) => setLogAutoClearIntervalHours(Number(e.target.value || 1))}
+              />
+            </label>
+          </div>
+
+          {logError ? <div className="formError">{logError}</div> : null}
+          {logOk ? <div className="formOk">{logOk}</div> : null}
         </GlassCard>
       </div>
 

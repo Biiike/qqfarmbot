@@ -51,6 +51,10 @@ export type Snapshot = {
       from: string;
       to: string;
     };
+    logs?: {
+      autoClearEnabled: boolean;
+      autoClearIntervalHours: number;
+    };
   };
   stats: { uptimeSec: number; memoryRss: number; heapUsed: number; heapTotal: number; wsClients: number };
   counters: {
@@ -215,7 +219,7 @@ export function DataProvider(props: { children: React.ReactNode }): React.JSX.El
     (list: LogEntry[]): void => {
       setLogs(compactLogs(list).slice(-logWindow));
     },
-    [logWindow]
+    []
   );
 
   const value = useMemo<DataContextValue>(
@@ -238,7 +242,7 @@ export function DataProvider(props: { children: React.ReactNode }): React.JSX.El
           return keep;
         }),
     }),
-    [logWindow, logs, setLogsWithLimit, snapshot, snapshotHistory, setSnapshotWithHistory]
+    [logs, setLogsWithLimit, snapshot, snapshotHistory, setSnapshotWithHistory]
   );
 
   return <DataContext.Provider value={value}>{props.children}</DataContext.Provider>;
