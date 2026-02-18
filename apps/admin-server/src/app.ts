@@ -364,6 +364,180 @@ export function createApp(services: Services): express.Express {
     })
     .passthrough();
 
+  const FARM_PRESET = "farm";
+  const FARM_APP_ID = "1112386029";
+  const FARM_QUA = "V1_HT5_QDT_0.70.2209190_x64_0_DEV_D";
+  const enableBuiltinQrFallback = process.env.QRLIB_BUILTIN_FALLBACK !== "0";
+
+  function isFarmPreset(preset: unknown): boolean {
+    return typeof preset === "string" && preset.trim().toLowerCase() === FARM_PRESET;
+  }
+
+  function getErrorCode(err: unknown): string | null {
+    if (!err || typeof err !== "object") return null;
+    if (!("code" in err)) return null;
+    const code = (err as { code?: unknown }).code;
+    return typeof code === "string" ? code : null;
+  }
+
+  function buildFarmHeaders(): Record<string, string> {
+    return {
+      qua: FARM_QUA,
+      host: "q.qq.com",
+      accept: "application/json",
+      "content-type": "application/json",
+      "user-agent": "Mozilla/5.0",
+    };
+  }
+
+  function buildQrImageFromUrl(url: string): string {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;
+  }
+
+  async function builtInFarmCreatePayload(): Promise<Record<string, unknown>> {
+    const resp = await axios.get("https://q.qq.com/ide/devtoolAuth/GetLoginCode", {
+      headers: buildFarmHeaders(),
+      timeout: 10_000,
+      validateStatus: () => true,
+    });
+
+    if (resp.status < 200 || resp.status >= 300) {
+      throw httpError(424, "QRLIB_UPSTREAM_ERROR", `内置扫码服务请求失败(${resp.status})`);
+    }
+
+    const parsed = z
+      .object({
+        code: z.union([z.number(), z.string()]),
+        message: z.string().optional(),
+        data: z
+          .object({
+            code: z.string().optional(),
+          })
+          .optional(),
+      })
+      .safeParse(resp.data);
+
+    if (!parsed.success) {
+      throw httpError(424, "QRLIB_UPSTREAM_ERROR", "内置扫码服务返回格式异常");
+    }
+
+    const rootCode = Number(parsed.data.code);
+    if (!Number.isFinite(rootCode) || rootCode !== 0) {
+      throw httpError(424, "QRLIB_UPSTREAM_ERROR", parsed.data.message || "内置扫码服务返回失败");
+    }
+
+    const loginCode = typeof parsed.data.data?.code === "string" ? parsed.data.data.code.trim() : "";
+    if (!loginCode) {
+      throw httpError(424, "QRLIB_UPSTREAM_ERROR", "内置扫码服务未返回有效 qrsig");
+    }
+
+    const url = `https://h5.qzone.qq.com/qqq/code/${loginCode}?_proxy=1&from=ide`;
+    return {
+      success: true,
+      isMiniProgram: true,
+      provider: "builtin-farm",
+      qrsig: loginCode,
+      url,
+      qrcode: buildQrImageFromUrl(url),
+    };
+  }
+
+  async function builtInFarmCheckPayload(qrsig: string): Promise<Record<string, unknown>> {
+    const statusResp = await axios.get(
+      `https://q.qq.com/ide/devtoolAuth/syncScanSateGetTicket?code=${encodeURIComponent(qrsig)}`,
+      {
+        headers: buildFarmHeaders(),
+        timeout: 10_000,
+        validateStatus: () => true,
+      }
+    );
+
+    if (statusResp.status < 200 || statusResp.status >= 300) {
+      throw httpError(424, "QRLIB_UPSTREAM_ERROR", `内置扫码状态查询失败(${statusResp.status})`);
+    }
+
+    const statusParsed = z
+      .object({
+        code: z.union([z.number(), z.string()]),
+        message: z.string().optional(),
+        data: z
+          .object({
+            ok: z.union([z.number(), z.string()]).optional(),
+            ticket: z.string().optional(),
+            uin: z.union([z.number(), z.string()]).optional(),
+          })
+          .optional(),
+      })
+      .safeParse(statusResp.data);
+
+    if (!statusParsed.success) {
+      throw httpError(424, "QRLIB_UPSTREAM_ERROR", "内置扫码状态返回格式异常");
+    }
+
+    const rootCode = Number(statusParsed.data.code);
+    if (!Number.isFinite(rootCode)) {
+      throw httpError(424, "QRLIB_UPSTREAM_ERROR", "内置扫码状态码异常");
+    }
+
+    if (rootCode === -10003) {
+      return { success: true, ret: "65", msg: "二维码已失效" };
+    }
+
+    if (rootCode !== 0) {
+      return { success: true, ret: "66", msg: statusParsed.data.message || "等待扫码..." };
+    }
+
+    const ok = Number(statusParsed.data.data?.ok ?? 0);
+    if (!Number.isFinite(ok) || ok !== 1) {
+      return { success: true, ret: "66", msg: "等待扫码..." };
+    }
+
+    const ticket = typeof statusParsed.data.data?.ticket === "string" ? statusParsed.data.data.ticket.trim() : "";
+    const uinRaw = statusParsed.data.data?.uin;
+    const uin =
+      typeof uinRaw === "string" ? uinRaw.trim() : typeof uinRaw === "number" && Number.isFinite(uinRaw) ? String(uinRaw) : "";
+    const avatar = uin ? `https://q1.qlogo.cn/g?b=qq&nk=${uin}&s=640` : "";
+
+    if (!ticket) {
+      return { success: true, ret: "67", msg: "已扫码，请在手机确认登录...", uin, avatar };
+    }
+
+    const authResp = await axios.post(
+      "https://q.qq.com/ide/login",
+      { appid: FARM_APP_ID, ticket },
+      {
+        headers: buildFarmHeaders(),
+        timeout: 10_000,
+        validateStatus: () => true,
+      }
+    );
+
+    if (authResp.status < 200 || authResp.status >= 300) {
+      return { success: true, ret: "67", msg: "已扫码，请稍后重试...", ticket, uin, avatar };
+    }
+
+    const authParsed = z
+      .object({
+        code: z.string().optional(),
+      })
+      .safeParse(authResp.data);
+    const code = authParsed.success && typeof authParsed.data.code === "string" ? authParsed.data.code.trim() : "";
+
+    if (!code) {
+      return { success: true, ret: "67", msg: "已扫码，请稍后重试...", ticket, uin, avatar };
+    }
+
+    return {
+      success: true,
+      ret: "0",
+      msg: "登录成功",
+      code,
+      ticket,
+      uin,
+      avatar,
+    };
+  }
+
   async function qrlibPost<T>(pathName: string, body: unknown): Promise<T> {
     const base = process.env.QRLIB_BASE_URL?.trim() ? process.env.QRLIB_BASE_URL.trim() : "http://127.0.0.1:5656";
     const url = new URL(pathName, base).toString();
@@ -423,7 +597,25 @@ export function createApp(services: Services): express.Express {
         })
         .passthrough()
         .parse(req.body);
-      const payload = await qrlibPost<unknown>("/api/qr/create", body);
+      let payload: unknown;
+      try {
+        payload = await qrlibPost<unknown>("/api/qr/create", body);
+      } catch (err) {
+        const code = getErrorCode(err);
+        const canFallback =
+          enableBuiltinQrFallback &&
+          isFarmPreset(body.preset) &&
+          (code === "QRLIB_UNAVAILABLE" || code === "QRLIB_UPSTREAM_ERROR");
+        if (!canFallback) throw err;
+
+        await services.logBuffer.append({
+          level: "warn",
+          scope: "QRLIB",
+          message: "QRLib 不可用，已切换内置 farm 扫码兜底",
+          details: { upstreamError: code },
+        });
+        payload = await builtInFarmCreatePayload();
+      }
       const normalized = payload && typeof payload === "object" ? ({ ...payload } as Record<string, unknown>) : {};
 
       if (normalized.success === undefined) normalized.success = true;
@@ -478,10 +670,29 @@ export function createApp(services: Services): express.Express {
       const body = z
         .object({
           qrsig: z.string().min(1),
+          preset: z.string().min(1).default("farm"),
         })
         .passthrough()
         .parse(req.body);
-      const payload = await qrlibPost<unknown>("/api/qr/check", body);
+      let payload: unknown;
+      try {
+        payload = await qrlibPost<unknown>("/api/qr/check", body);
+      } catch (err) {
+        const code = getErrorCode(err);
+        const canFallback =
+          enableBuiltinQrFallback &&
+          isFarmPreset(body.preset) &&
+          (code === "QRLIB_UNAVAILABLE" || code === "QRLIB_UPSTREAM_ERROR");
+        if (!canFallback) throw err;
+
+        await services.logBuffer.append({
+          level: "warn",
+          scope: "QRLIB",
+          message: "QRLib 状态查询不可用，已切换内置 farm 扫码兜底",
+          details: { upstreamError: code },
+        });
+        payload = await builtInFarmCheckPayload(body.qrsig);
+      }
       const normalized = payload && typeof payload === "object" ? ({ ...payload } as Record<string, unknown>) : {};
 
       if (normalized.success === undefined) normalized.success = true;
