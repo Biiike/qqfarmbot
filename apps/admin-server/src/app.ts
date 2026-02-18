@@ -502,6 +502,22 @@ export function createApp(services: Services): express.Express {
     })
   );
 
+  app.get(
+    "/api/logs/meta",
+    requireAuth(services.env.JWT_SECRET),
+    requireRole("admin"),
+    asyncHandler(async (_req, res) => {
+      const sizeBytes = await services.logBuffer.getFileSizeBytes();
+      const cfg = services.getRuntimeConfig();
+      res.json({
+        sizeBytes,
+        path: services.logBuffer.getExportPath(),
+        autoClearEnabled: Boolean(cfg.logs?.autoClearEnabled ?? false),
+        autoClearIntervalHours: Number(cfg.logs?.autoClearIntervalHours ?? 24),
+      });
+    })
+  );
+
   app.post(
     "/api/logs/clear",
     requireAuth(services.env.JWT_SECRET),

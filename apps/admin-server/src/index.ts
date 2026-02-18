@@ -85,6 +85,31 @@ export async function startAdminServer(input?: {
     shutdown: async () => {},
   };
 
+  let logCleanupTimer: NodeJS.Timeout | null = null;
+  const refreshLogCleanup = (cfg: typeof configCache): void => {
+    if (logCleanupTimer) {
+      clearInterval(logCleanupTimer);
+      logCleanupTimer = null;
+    }
+    const enabled = Boolean(cfg.logs?.autoClearEnabled);
+    const intervalHours = Number(cfg.logs?.autoClearIntervalHours ?? 24);
+    if (!enabled || !Number.isFinite(intervalHours) || intervalHours < 1) return;
+    const intervalMs = Math.max(60_000, Math.floor(intervalHours * 3600 * 1000));
+    logCleanupTimer = setInterval(() => {
+      void services.logBuffer
+        .clear()
+        .then(() =>
+          services.logBuffer.append({
+            level: "info",
+            scope: "LOG",
+            message: `Auto log cleanup executed (${intervalHours}h interval)`,
+          })
+        )
+        .catch(() => undefined);
+    }, intervalMs);
+  };
+  refreshLogCleanup(configCache);
+
   const app = createApp(services);
 
   const server = http.createServer(app);
@@ -99,6 +124,10 @@ export async function startAdminServer(input?: {
     shuttingDown = true;
     stopLogBroadcast();
     stopSnapshotBroadcast();
+    if (logCleanupTimer) {
+      clearInterval(logCleanupTimer);
+      logCleanupTimer = null;
+    }
     wsHub.close();
     await bot.stop();
     await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -130,6 +159,7 @@ export async function startAdminServer(input?: {
 
   (configStore as ConfigStoreWithHook).onAfterSet = (saved) => {
     configCache = saved as typeof configCache;
+    refreshLogCleanup(configCache);
     try {
       bot.applyRuntimeConfig(saved as typeof configCache);
     } catch {

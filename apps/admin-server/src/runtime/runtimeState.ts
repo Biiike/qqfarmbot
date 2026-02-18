@@ -37,6 +37,10 @@ export type RuntimeConfig = {
     from: string;
     to: string;
   };
+  logs?: {
+    autoClearEnabled: boolean;
+    autoClearIntervalHours: number;
+  };
 };
 
 export type RuntimeStats = {

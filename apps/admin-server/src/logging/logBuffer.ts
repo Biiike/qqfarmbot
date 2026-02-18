@@ -97,6 +97,15 @@ export class LogBuffer {
     return this.logFilePath;
   }
 
+  async getFileSizeBytes(): Promise<number> {
+    try {
+      const stat = await fs.stat(this.logFilePath);
+      return Number.isFinite(stat.size) && stat.size > 0 ? stat.size : 0;
+    } catch {
+      return 0;
+    }
+  }
+
   /**
    * 清空内存日志与持久化文件。
    */

@@ -42,6 +42,10 @@ type StoredRuntimeConfig = {
     from: string;
     to: string;
   };
+  logs?: {
+    autoClearEnabled: boolean;
+    autoClearIntervalHours: number;
+  };
 };
 
 const LegacyRuntimeConfigSchema = z.object({
@@ -99,6 +103,12 @@ const StoredRuntimeConfigSchema = z.object({
       to: z.string().max(2000),
     })
     .optional(),
+  logs: z
+    .object({
+      autoClearEnabled: z.boolean(),
+      autoClearIntervalHours: z.number().int().min(1).max(24 * 30),
+    })
+    .optional(),
 });
 
 const ApiRuntimeConfigSchema = StoredRuntimeConfigSchema.extend({
@@ -124,6 +134,13 @@ const ApiRuntimeConfigSchema = StoredRuntimeConfigSchema.extend({
     if (!val.smtp.port) ctx.addIssue({ code: "custom", message: "smtp.port required", path: ["smtp", "port"] });
     if (!val.smtp.from.trim()) ctx.addIssue({ code: "custom", message: "smtp.from required", path: ["smtp", "from"] });
     if (!val.smtp.to.trim()) ctx.addIssue({ code: "custom", message: "smtp.to required", path: ["smtp", "to"] });
+  }
+  if (val.logs?.autoClearEnabled && (!Number.isFinite(val.logs.autoClearIntervalHours) || val.logs.autoClearIntervalHours < 1)) {
+    ctx.addIssue({
+      code: "custom",
+      message: "logs.autoClearIntervalHours required",
+      path: ["logs", "autoClearIntervalHours"],
+    });
   }
 });
 
@@ -203,6 +220,12 @@ export class ConfigStore {
             to: stored.smtp.to,
           }
         : undefined,
+      logs: {
+        autoClearEnabled: Boolean(stored.logs?.autoClearEnabled ?? false),
+        autoClearIntervalHours: Number.isFinite(stored.logs?.autoClearIntervalHours)
+          ? Math.max(1, Math.floor(stored.logs!.autoClearIntervalHours))
+          : 24,
+      },
     };
   }
 
@@ -229,6 +252,7 @@ export class ConfigStore {
       },
       farming: { forceLowestLevelCrop: false, forceLatestLevelCrop: false, disableAutoRecommend: false },
       ui: { wallpaper: { sync: true, mode: "local" } },
+      logs: { autoClearEnabled: false, autoClearIntervalHours: 24 },
     };
     const raw = await readJsonFile<unknown>(this.filePath, fallback);
     const stored = this.toStored(raw);
@@ -259,6 +283,7 @@ export class ConfigStore {
       },
       farming: { forceLowestLevelCrop: false, forceLatestLevelCrop: false, disableAutoRecommend: false },
       ui: { wallpaper: { sync: true, mode: "local" } },
+      logs: { autoClearEnabled: false, autoClearIntervalHours: 24 },
     };
     const raw = await readJsonFile<unknown>(this.filePath, fallback);
     const stored = this.toStored(raw);
@@ -315,6 +340,12 @@ export class ConfigStore {
             to: parsed.smtp.to,
           }
         : current.smtp,
+      logs: parsed.logs
+        ? {
+            autoClearEnabled: parsed.logs.autoClearEnabled,
+            autoClearIntervalHours: parsed.logs.autoClearIntervalHours,
+          }
+        : current.logs,
     };
     await writeJsonFile(this.filePath, merged);
     const pub = this.toPublic(merged);
