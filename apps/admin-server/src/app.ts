@@ -424,7 +424,49 @@ export function createApp(services: Services): express.Express {
         .passthrough()
         .parse(req.body);
       const payload = await qrlibPost<unknown>("/api/qr/create", body);
-      res.json(payload);
+      const normalized = payload && typeof payload === "object" ? ({ ...payload } as Record<string, unknown>) : {};
+
+      if (normalized.success === undefined) normalized.success = true;
+
+      const rawData = normalized.data;
+      const nested = rawData && typeof rawData === "object" ? (rawData as Record<string, unknown>) : null;
+
+      if (!normalized.qrsig) {
+        const fallbackSig =
+          (typeof normalized.code === "string" && normalized.code.trim()) ||
+          (nested && typeof nested.code === "string" && nested.code.trim()) ||
+          "";
+        if (fallbackSig) normalized.qrsig = fallbackSig;
+      }
+
+      if (!normalized.url && nested && typeof nested.url === "string" && nested.url.trim()) {
+        normalized.url = nested.url;
+      }
+
+      if (!normalized.qrcode) {
+        const directQr =
+          (typeof normalized.image === "string" && normalized.image.trim()) ||
+          (nested && typeof nested.qrcode === "string" && nested.qrcode.trim()) ||
+          "";
+        if (directQr) normalized.qrcode = directQr;
+      }
+
+      if (!normalized.qrcode && typeof normalized.url === "string" && normalized.url.trim()) {
+        normalized.qrcode = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(normalized.url)}`;
+      }
+
+      if (
+        normalized.success !== false &&
+        typeof normalized.qrsig === "string" &&
+        normalized.qrsig.trim() &&
+        typeof normalized.qrcode === "string" &&
+        normalized.qrcode.trim()
+      ) {
+        res.json(normalized);
+        return;
+      }
+
+      throw httpError(424, "QRLIB_UPSTREAM_ERROR", "二维码服务返回数据不完整");
     })
   );
 
@@ -440,7 +482,13 @@ export function createApp(services: Services): express.Express {
         .passthrough()
         .parse(req.body);
       const payload = await qrlibPost<unknown>("/api/qr/check", body);
-      res.json(payload);
+      const normalized = payload && typeof payload === "object" ? ({ ...payload } as Record<string, unknown>) : {};
+
+      if (normalized.success === undefined) normalized.success = true;
+      if (typeof normalized.ret === "number") normalized.ret = String(normalized.ret);
+      if (!normalized.msg && typeof normalized.message === "string") normalized.msg = normalized.message;
+
+      res.json(normalized);
     })
   );
 
