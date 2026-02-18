@@ -1,10 +1,12 @@
 import { z } from "zod";
 
+const defaultDataDir = process.env.NODE_ENV === "production" ? "/data/admin" : "/tmp/qqfarmbot/admin";
+
 const EnvSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(8787),
   HOST: z.string().default("0.0.0.0"),
   JWT_SECRET: z.string().min(16).default("dev-secret-change-me-now"),
-  DATA_DIR: z.string().default("/tmp/qqfarmbot/admin"),
+  DATA_DIR: z.string().default(defaultDataDir),
   BOOTSTRAP_ADMIN_USERNAME: z.string().default("admin"),
   BOOTSTRAP_ADMIN_PASSWORD: z.string().min(8).default("admin12345"),
 });

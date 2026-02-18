@@ -32,5 +32,8 @@ COPY --from=builder /app/proto ./proto
 COPY --from=builder /app/client.js ./client.js
 COPY --from=builder /app/share.txt ./share.txt
 
+RUN mkdir -p /data/admin
+VOLUME ["/data"]
+
 EXPOSE 8080
 CMD ["node", "apps/admin-server/dist/index.js"]

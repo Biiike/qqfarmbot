@@ -17,6 +17,31 @@ const { sendMsgAsync } = require('./network');
 const { toLong, log, logWarn, sleep } = require('./utils');
 const { CONFIG } = require('./config');
 
+function resolveShareFilePath() {
+    const custom = process.env.SHARE_FILE_PATH;
+    if (typeof custom === 'string' && custom.trim()) {
+        return path.isAbsolute(custom) ? custom : path.resolve(process.cwd(), custom);
+    }
+
+    const dataDir = process.env.DATA_DIR;
+    if (typeof dataDir === 'string' && dataDir.trim()) {
+        const absDataDir = path.isAbsolute(dataDir) ? dataDir : path.resolve(process.cwd(), dataDir);
+        return path.join(absDataDir, 'share.txt');
+    }
+
+    return path.join(__dirname, '..', 'share.txt');
+}
+
+function resolveReadableShareFilePath() {
+    const preferred = resolveShareFilePath();
+    if (fs.existsSync(preferred)) return preferred;
+
+    const legacy = path.join(__dirname, '..', 'share.txt');
+    if (legacy !== preferred && fs.existsSync(legacy)) return legacy;
+
+    return preferred;
+}
+
 /**
  * 解析分享链接，提取 uid 和 openid
  * 格式: ?uid=xxx&openid=xxx&share_source=xxx&doc_id=xxx
@@ -41,7 +66,7 @@ function parseShareLink(link) {
  * 读取 share.txt 文件并去重
  */
 function readShareFile() {
-    const shareFilePath = path.join(__dirname, '..', 'share.txt');
+    const shareFilePath = resolveReadableShareFilePath();
     
     if (!fs.existsSync(shareFilePath)) {
         return [];
@@ -142,11 +167,12 @@ async function processInviteCodes() {
 /**
  * 清空已处理的邀请码文件
  */
-function clearShareFile() {
-    const shareFilePath = path.join(__dirname, '..', 'share.txt');
+function clearShareFile(filePath) {
+    const shareFilePath = filePath || resolveReadableShareFilePath();
     try {
+        fs.mkdirSync(path.dirname(shareFilePath), { recursive: true });
         fs.writeFileSync(shareFilePath, '', 'utf8');
-        log('邀请', '已清空 share.txt');
+        log('邀请', `已清空 share.txt (${shareFilePath})`);
     } catch (e) {
         // 静默失败
     }
