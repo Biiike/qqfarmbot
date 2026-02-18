@@ -357,26 +357,59 @@ export function createApp(services: Services): express.Express {
     })
   );
 
+  const QrLibEnvelopeSchema = z
+    .object({
+      success: z.boolean().optional(),
+      message: z.string().optional(),
+    })
+    .passthrough();
+
   async function qrlibPost<T>(pathName: string, body: unknown): Promise<T> {
     const base = process.env.QRLIB_BASE_URL?.trim() ? process.env.QRLIB_BASE_URL.trim() : "http://127.0.0.1:5656";
     const url = new URL(pathName, base).toString();
+    const maxAttempts = pathName === "/api/qr/create" ? 3 : 2;
+    const isRetryableStatus = (status: number): boolean => [408, 409, 425, 429, 500, 502, 503, 504].includes(status);
 
-    try {
-      const resp = await axios.post(url, body ?? {}, {
-        timeout: 10_000,
-        headers: { "content-type": "application/json" },
-        validateStatus: () => true,
-      });
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const resp = await axios.post(url, body ?? {}, {
+          timeout: 10_000,
+          headers: { "content-type": "application/json" },
+          validateStatus: () => true,
+        });
 
-      const payload: unknown = resp.data;
-      if (resp.status < 200 || resp.status >= 300) {
-        throw httpError(424, "QRLIB_UPSTREAM_ERROR", typeof payload === "string" ? payload : undefined);
+        const payload: unknown = resp.data;
+        const parsed = QrLibEnvelopeSchema.safeParse(payload);
+        const payloadMessage = parsed.success ? parsed.data.message : undefined;
+
+        if (resp.status < 200 || resp.status >= 300) {
+          if (attempt < maxAttempts && isRetryableStatus(resp.status)) {
+            await new Promise((resolve) => setTimeout(resolve, 350 * attempt));
+            continue;
+          }
+          throw httpError(424, "QRLIB_UPSTREAM_ERROR", payloadMessage || (typeof payload === "string" ? payload : undefined));
+        }
+
+        if (parsed.success && parsed.data.success === false) {
+          if (attempt < maxAttempts) {
+            await new Promise((resolve) => setTimeout(resolve, 350 * attempt));
+            continue;
+          }
+          throw httpError(424, "QRLIB_UPSTREAM_ERROR", payloadMessage || "二维码服务返回失败");
+        }
+
+        return payload as T;
+      } catch (err) {
+        if (err && typeof err === "object" && "status" in err && typeof err.status === "number") throw err;
+        if (attempt < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 350 * attempt));
+          continue;
+        }
+        throw httpError(424, "QRLIB_UNAVAILABLE", `扫码服务不可用，请确认 QRLib 已启动且 QRLIB_BASE_URL 可访问（当前：${base}）`);
       }
-      return payload as T;
-    } catch (err) {
-      if (err && typeof err === "object" && "status" in err && typeof err.status === "number") throw err;
-      throw httpError(424, "QRLIB_UNAVAILABLE", `扫码服务不可用，请确认 QRLib 已启动且 QRLIB_BASE_URL 可访问（当前：${base}）`);
     }
+
+    throw httpError(424, "QRLIB_UNAVAILABLE", `扫码服务不可用，请确认 QRLib 已启动且 QRLIB_BASE_URL 可访问（当前：${base}）`);
   }
 
   app.post(
