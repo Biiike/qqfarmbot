@@ -8,6 +8,8 @@ const { CONFIG } = require('./config');
 const { toLong, toNum, log, logWarn, sleep } = require('./utils');
 
 let lastTaskInfo = null;
+let taskClaimTimer = null;
+let taskClaimRunning = false;
 
 // ============ 任务 API ============
 
@@ -72,11 +74,9 @@ function analyzeTaskList(tasks) {
         const progress = toNum(task.progress);
         const totalProgress = toNum(task.total_progress);
         const isClaimed = task.is_claimed;
-        const isUnlocked = task.is_unlocked;
         const shareMultiple = toNum(task.share_multiple);
 
-        // 可领取条件: 已解锁 + 未领取 + 进度完成
-        if (isUnlocked && !isClaimed && progress >= totalProgress) {
+        if (!isClaimed && progress >= totalProgress) {
             claimable.push({
                 id,
                 desc: task.desc || `任务#${id}`,
@@ -114,6 +114,8 @@ function getRewardSummary(items) {
  */
 async function checkAndClaimTasks() {
     if (!CONFIG.autoTask) return;
+    if (taskClaimRunning) return;
+    taskClaimRunning = true;
     try {
         const reply = await getTaskInfo();
         if (!reply.task_info) return;
@@ -158,6 +160,8 @@ async function checkAndClaimTasks() {
         }
     } catch (e) {
         logWarn('任务', `自动领取检查失败: ${e.message}`);
+    } finally {
+        taskClaimRunning = false;
     }
 }
 
@@ -229,6 +233,12 @@ function initTaskSystem() {
     // 监听任务状态变化推送
     networkEvents.on('taskInfoNotify', onTaskInfoNotify);
 
+    if (taskClaimTimer) clearInterval(taskClaimTimer);
+    taskClaimTimer = setInterval(() => {
+        if (!CONFIG.autoTask) return;
+        void checkAndClaimTasks();
+    }, 15000);
+
     // 启动时获取一次任务信息
     setTimeout(async () => {
         try {
@@ -243,6 +253,11 @@ function initTaskSystem() {
 
 function cleanupTaskSystem() {
     networkEvents.off('taskInfoNotify', onTaskInfoNotify);
+    if (taskClaimTimer) {
+        clearInterval(taskClaimTimer);
+        taskClaimTimer = null;
+    }
+    taskClaimRunning = false;
 }
 
 module.exports = {
