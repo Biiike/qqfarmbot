@@ -191,12 +191,28 @@ async function removePlant(landIds) {
     return types.RemovePlantReply.decode(replyBody);
 }
 
+function normalizeLandId(raw) {
+    const n = Number(toNum(raw));
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return Math.floor(n);
+}
+
+function encodeUnlockLandRequest(landId, gid) {
+    const writer = protobuf.Writer.create();
+    const idsWriter = writer.uint32(10).fork();
+    idsWriter.int64(landId);
+    idsWriter.ldelim();
+    writer.uint32(16).int64(gid);
+    return writer.finish();
+}
+
 async function unlockLand(landIds) {
+    const state = getUserState();
     let results = [];
     for (const landId of landIds) {
-        const body = types.UnlockLandRequest.encode(types.UnlockLandRequest.create({
-            land_ids: [toLong(landId)],
-        })).finish();
+        const normalizedLandId = normalizeLandId(landId);
+        if (!normalizedLandId) continue;
+        const body = encodeUnlockLandRequest(normalizedLandId, toLong(state.gid));
         const { body: replyBody } = await sendMsgAsync('gamepb.plantpb.PlantService', 'UnlockLand', body);
         results.push(types.UnlockLandReply.decode(replyBody));
         await sleep(200);
@@ -691,10 +707,14 @@ async function checkFarm() {
         const lands = landsReply.lands;
         const status = analyzeLands(lands);
         const unlockedLandCount = lands.filter(land => land && land.unlocked).length;
+        const actions = [];
 
         // 自动开拓新土地
         if (CONFIG.autoExpandLand) {
-            const unlockableLands = lands.filter(land => land && !land.unlocked && land.could_unlock).map(land => toNum(land.id));
+            const unlockableLands = lands
+                .filter(land => land && !land.unlocked && land.could_unlock)
+                .map(land => normalizeLandId(land.id))
+                .filter(id => id > 0);
             if (unlockableLands.length > 0) {
                 try {
                     await unlockLand(unlockableLands);
@@ -760,8 +780,6 @@ async function checkFarm() {
             || status.needWater.length || status.dead.length || status.empty.length;
 
         // 执行操作并收集结果
-        const actions = [];
-
         // 一键操作：除草、除虫、浇水可以并行执行（游戏中都是一键完成）
         const batchOps = [];
         if (CONFIG.autoWeed && status.needWeed.length > 0) {
