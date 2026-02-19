@@ -28,6 +28,9 @@ let lastFarmSummary = null;
 
 const recentIncomingVisitAtMs = new Map();
 const INCOMING_VISIT_DEDUPE_WINDOW_MS = 6 * 60 * 60 * 1000;
+const UPGRADE_PARAM_ERROR_CODE = 'code=1000020';
+const UPGRADE_RETRY_COOLDOWN_MS = 30 * 60 * 1000;
+const blockedUpgradeLandUntilMs = new Map();
 
 /**
  * 从 AllLandsReply 中提取“来访/作恶”痕迹（偷菜/放草/放虫），并通过 botEvents 上报给管理端。
@@ -206,6 +209,26 @@ function encodeUnlockLandRequest(landId, gid) {
     return writer.finish();
 }
 
+function encodeUpgradeLandRequest(landId, gid) {
+    const writer = protobuf.Writer.create();
+    const idsWriter = writer.uint32(10).fork();
+    idsWriter.int64(landId);
+    idsWriter.ldelim();
+    writer.uint32(16).int64(gid);
+    return writer.finish();
+}
+
+function pruneUpgradeCooldown(nowMs) {
+    for (const [landId, untilMs] of blockedUpgradeLandUntilMs.entries()) {
+        if (untilMs <= nowMs) blockedUpgradeLandUntilMs.delete(landId);
+    }
+}
+
+function isUpgradeParamError(err) {
+    const msg = err && err.message ? String(err.message) : '';
+    return msg.includes(UPGRADE_PARAM_ERROR_CODE);
+}
+
 async function unlockLand(landIds) {
     const state = getUserState();
     let results = [];
@@ -221,16 +244,33 @@ async function unlockLand(landIds) {
 }
 
 async function upgradeLand(landIds) {
+    const state = getUserState();
     let results = [];
+    let successCount = 0;
+    const nowMs = Date.now();
     for (const landId of landIds) {
-        const body = types.UpgradeLandRequest.encode(types.UpgradeLandRequest.create({
-            land_ids: [toLong(landId)],
-        })).finish();
-        const { body: replyBody } = await sendMsgAsync('gamepb.plantpb.PlantService', 'UpgradeLand', body);
-        results.push(types.UpgradeLandReply.decode(replyBody));
+        const normalizedLandId = normalizeLandId(landId);
+        if (!normalizedLandId) continue;
+        const blockedUntilMs = blockedUpgradeLandUntilMs.get(normalizedLandId) || 0;
+        if (blockedUntilMs > nowMs) continue;
+
+        try {
+            const body = encodeUpgradeLandRequest(normalizedLandId, toLong(state.gid));
+            const { body: replyBody } = await sendMsgAsync('gamepb.plantpb.PlantService', 'UpgradeLand', body);
+            results.push(types.UpgradeLandReply.decode(replyBody));
+            successCount++;
+        } catch (e) {
+            if (isUpgradeParamError(e)) {
+                blockedUpgradeLandUntilMs.set(normalizedLandId, Date.now() + UPGRADE_RETRY_COOLDOWN_MS);
+                logWarn('升级土地', `土地#${normalizedLandId} 暂不满足升级条件，30分钟后重试`);
+                continue;
+            }
+            throw e;
+        }
+
         await sleep(200);
     }
-    return results;
+    return { results, successCount };
 }
 
 // ============ 商店 API ============
@@ -708,6 +748,7 @@ async function checkFarm() {
         const status = analyzeLands(lands);
         const unlockedLandCount = lands.filter(land => land && land.unlocked).length;
         const actions = [];
+        pruneUpgradeCooldown(Date.now());
 
         // 自动开拓新土地
         if (CONFIG.autoExpandLand) {
@@ -735,21 +776,32 @@ async function checkFarm() {
 
         // 自动升级红土
         if (CONFIG.autoUpgradeRedLand) {
-            const upgradeableLands = lands.filter(land => land && land.unlocked && land.could_upgrade).map(land => toNum(land.id));
+            const upgradeableLands = lands
+                .filter(land => {
+                    if (!land || !land.unlocked || !land.could_upgrade) return false;
+                    const phases = land.plant && Array.isArray(land.plant.phases) ? land.plant.phases : [];
+                    return phases.length === 0;
+                })
+                .map(land => normalizeLandId(land.id))
+                .filter(id => id > 0);
             if (upgradeableLands.length > 0) {
                 try {
-                    await upgradeLand(upgradeableLands);
-                    upgradeableLands.forEach(landId => {
-                        botEvents.emit('visit', {
-                            direction: 'outgoing',
-                            gid: state.gid,
-                            name: '自己',
-                            ts: new Date().toISOString(),
-                            kind: 'upgrade',
-                            message: `升级红土 (地块#${landId})`,
+                    const { successCount } = await upgradeLand(upgradeableLands);
+                    if (successCount > 0) {
+                        upgradeableLands.forEach(landId => {
+                            const blockedUntilMs = blockedUpgradeLandUntilMs.get(landId) || 0;
+                            if (blockedUntilMs > Date.now()) return;
+                            botEvents.emit('visit', {
+                                direction: 'outgoing',
+                                gid: state.gid,
+                                name: '自己',
+                                ts: new Date().toISOString(),
+                                kind: 'upgrade',
+                                message: `升级红土 (地块#${landId})`,
+                            });
                         });
-                    });
-                    actions.push(`升级${upgradeableLands.length}`);
+                        actions.push(`升级${successCount}`);
+                    }
                 } catch (e) { logWarn('升级土地', e.message); }
             }
         }
