@@ -68,6 +68,7 @@ function analyzeTaskList(tasks) {
     const claimable = [];
     for (const task of tasks) {
         const id = toNum(task.id);
+        if (!Number.isFinite(id) || id <= 0) continue;
         const progress = toNum(task.progress);
         const totalProgress = toNum(task.total_progress);
         const isClaimed = task.is_claimed;
@@ -75,7 +76,7 @@ function analyzeTaskList(tasks) {
         const shareMultiple = toNum(task.share_multiple);
 
         // 可领取条件: 已解锁 + 未领取 + 进度完成
-        if (isUnlocked && !isClaimed && progress >= totalProgress && totalProgress > 0) {
+        if (isUnlocked && !isClaimed && progress >= totalProgress) {
             claimable.push({
                 id,
                 desc: task.desc || `任务#${id}`,
@@ -133,9 +134,19 @@ async function checkAndClaimTasks() {
             try {
                 // 如果有分享翻倍，使用翻倍领取
                 const useShare = task.shareMultiple > 1;
-                const multipleStr = useShare ? ` (${task.shareMultiple}倍)` : '';
-
-                const claimReply = await claimTaskReward(task.id, useShare);
+                let claimReply;
+                let usedShare = false;
+                if (useShare) {
+                    try {
+                        claimReply = await claimTaskReward(task.id, true);
+                        usedShare = true;
+                    } catch {
+                        claimReply = await claimTaskReward(task.id, false);
+                    }
+                } else {
+                    claimReply = await claimTaskReward(task.id, false);
+                }
+                const multipleStr = usedShare ? ` (${task.shareMultiple}倍)` : '';
                 const items = claimReply.items || [];
                 const rewardStr = items.length > 0 ? getRewardSummary(items) : '无';
 
@@ -146,7 +157,7 @@ async function checkAndClaimTasks() {
             }
         }
     } catch (e) {
-        // 静默失败
+        logWarn('任务', `自动领取检查失败: ${e.message}`);
     }
 }
 
@@ -188,9 +199,19 @@ async function claimTasksFromList(claimable) {
     for (const task of claimable) {
         try {
             const useShare = task.shareMultiple > 1;
-            const multipleStr = useShare ? ` (${task.shareMultiple}倍)` : '';
-
-            const claimReply = await claimTaskReward(task.id, useShare);
+            let claimReply;
+            let usedShare = false;
+            if (useShare) {
+                try {
+                    claimReply = await claimTaskReward(task.id, true);
+                    usedShare = true;
+                } catch {
+                    claimReply = await claimTaskReward(task.id, false);
+                }
+            } else {
+                claimReply = await claimTaskReward(task.id, false);
+            }
+            const multipleStr = usedShare ? ` (${task.shareMultiple}倍)` : '';
             const items = claimReply.items || [];
             const rewardStr = items.length > 0 ? getRewardSummary(items) : '无';
 
