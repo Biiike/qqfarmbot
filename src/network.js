@@ -28,6 +28,17 @@ const userState = {
     exp: 0,
 };
 
+function resetSessionState() {
+    clientSeq = 1;
+    serverSeq = 0;
+    pendingCallbacks.clear();
+    userState.gid = 0;
+    userState.name = '';
+    userState.level = 0;
+    userState.gold = 0;
+    userState.exp = 0;
+}
+
 function getUserState() { return userState; }
 
 // ============ 消息编解码 ============
@@ -417,31 +428,49 @@ function startHeartbeat() {
 
 // ============ WebSocket 连接 ============
 function connect(code, onLoginSuccess) {
+    cleanup();
+    resetSessionState();
+
+    if (ws) {
+        try {
+            ws.removeAllListeners();
+            ws.terminate?.();
+        } catch (e) { }
+        ws = null;
+    }
+
     const url = `${CONFIG.serverUrl}?platform=${CONFIG.platform}&os=${CONFIG.os}&ver=${CONFIG.clientVersion}&code=${code}&openID=`;
 
-    ws = new WebSocket(url, {
+    const currentWs = new WebSocket(url, {
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13)',
             'Origin': 'https://gate-obt.nqf.qq.com',
         },
     });
 
-    ws.binaryType = 'arraybuffer';
+    ws = currentWs;
 
-    ws.on('open', () => {
+    currentWs.binaryType = 'arraybuffer';
+
+    currentWs.on('open', () => {
+        if (ws !== currentWs) return;
         sendLogin(onLoginSuccess);
     });
 
-    ws.on('message', (data) => {
+    currentWs.on('message', (data) => {
+        if (ws !== currentWs) return;
         handleMessage(Buffer.isBuffer(data) ? data : Buffer.from(data));
     });
 
-    ws.on('close', (code, reason) => {
+    currentWs.on('close', (code, reason) => {
+        if (ws !== currentWs) return;
         console.log(`[WS] 连接关闭 (code=${code})`);
+        ws = null;
         cleanup();
     });
 
-    ws.on('error', (err) => {
+    currentWs.on('error', (err) => {
+        if (ws !== currentWs) return;
         logWarn('WS', `错误: ${err.message}`);
     });
 }
