@@ -102,9 +102,11 @@ export type Snapshot = {
         id: number;
         unlocked: boolean;
         cropName: string | null;
+        cropExp: number | null;
         phase: number | null;
         phaseName: string | null;
         timeLeftSec: number | null;
+        totalGrowSec: number | null;
         progress: number | null;
         needWater: boolean;
         needWeed: boolean;

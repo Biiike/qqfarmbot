@@ -600,9 +600,32 @@ export function DashboardPage(): React.JSX.Element {
   }, [user]);
 
   const levelEta = useMemo(() => {
-    if (!levelProgress || !snapshot || !counters) return null;
-    if (levelProgress.left <= 0) return { sec: 0, expPerHour: 0 };
+    if (!levelProgress || !snapshot) return null;
+    if (levelProgress.left <= 0) return { sec: 0, expPerHour: 0, source: "done" as const };
 
+    const landItems = snapshot.bot?.lands?.items ?? [];
+    let cycleExpPerSec = 0;
+    for (const land of landItems) {
+      if (!land?.unlocked) continue;
+      if (land.phase === 7 || land.cropName == null) continue;
+      const exp = Number(land.cropExp);
+      const growSec = Number(land.totalGrowSec);
+      if (!Number.isFinite(exp) || exp <= 0) continue;
+      if (!Number.isFinite(growSec) || growSec <= 0) continue;
+      cycleExpPerSec += exp / growSec;
+    }
+    if (Number.isFinite(cycleExpPerSec) && cycleExpPerSec > 0) {
+      const etaSec = levelProgress.left / cycleExpPerSec;
+      if (Number.isFinite(etaSec) && etaSec >= 0) {
+        return {
+          sec: etaSec,
+          expPerHour: cycleExpPerSec * 3600,
+          source: "cycle" as const,
+        };
+      }
+    }
+
+    if (!counters) return null;
     const startedAtIso = snapshot.bot?.startedAt;
     if (!startedAtIso) return null;
     const startedAtMs = Date.parse(startedAtIso);
@@ -624,6 +647,7 @@ export function DashboardPage(): React.JSX.Element {
     return {
       sec: etaSec,
       expPerHour: expPerSec * 3600,
+      source: "history" as const,
     };
   }, [levelProgress, snapshot, counters]);
 
@@ -971,7 +995,9 @@ export function DashboardPage(): React.JSX.Element {
                   {user && levelProgress ? (
                     <div className="muted" style={{ marginTop: 4, lineHeight: 1.3 }}>
                       {levelEta
-                        ? `按当前效率，约 ${formatEta(levelEta.sec)} 升级（${Math.max(0, Math.floor(levelEta.expPerHour))} 经验/小时）`
+                        ? levelEta.source === "cycle"
+                          ? `按当前作物成熟周期，约 ${formatEta(levelEta.sec)} 升级（${Math.max(0, Math.floor(levelEta.expPerHour))} 经验/小时）`
+                          : `按当前效率，约 ${formatEta(levelEta.sec)} 升级（${Math.max(0, Math.floor(levelEta.expPerHour))} 经验/小时）`
                         : "经验增长数据不足，暂无法估算升级时间"}
                     </div>
                   ) : null}

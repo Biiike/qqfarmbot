@@ -29,9 +29,11 @@ type BotStatus = {
       id: number;
       unlocked: boolean;
       cropName: string | null;
+      cropExp: number | null;
       phase: number | null;
       phaseName: string | null;
       timeLeftSec: number | null;
+      totalGrowSec: number | null;
       progress: number | null;
       needWater: boolean;
       needWeed: boolean;
@@ -522,6 +524,7 @@ export class BotController {
       getLastAllLandsReply?: () => unknown;
       getCurrentPhase?: (phases: unknown, debug?: boolean, landLabel?: string) => unknown;
     };
+    gameConfigMod?: { getPlantExp?: (plantId: number) => number };
     utilsMod: { getServerTimeSec?: () => number; toTimeSec?: (v: unknown) => number };
   }): void {
     const summary = deps.farmMod.getLastFarmSummary();
@@ -537,6 +540,7 @@ export class BotController {
     landsReply: unknown,
     deps: {
       farmMod: { getCurrentPhase?: (phases: unknown, debug?: boolean, landLabel?: string) => unknown };
+      gameConfigMod?: { getPlantExp?: (plantId: number) => number };
       utilsMod: { getServerTimeSec?: () => number; toTimeSec?: (v: unknown) => number };
     }
   ): BotStatus["lands"] {
@@ -545,6 +549,7 @@ export class BotController {
 
     const toTimeSec = deps.utilsMod.toTimeSec ?? ((v: unknown) => (typeof v === "number" ? v : 0));
     const nowSec = deps.utilsMod.getServerTimeSec?.() ?? Math.floor(Date.now() / 1000);
+    const getPlantExp = deps.gameConfigMod?.getPlantExp;
 
     const PHASE_NAMES = ["未知", "种子", "发芽", "小叶", "大叶", "开花", "成熟", "枯死"];
 
@@ -558,6 +563,7 @@ export class BotController {
           could_unlock?: boolean;
           could_upgrade?: boolean;
           plant?: {
+            id?: unknown;
             name?: string;
             dry_num?: unknown;
             weed_owners?: unknown[];
@@ -579,9 +585,11 @@ export class BotController {
             id: idNum,
             unlocked,
             cropName: null,
+            cropExp: null,
             phase: null,
             phaseName: null,
             timeLeftSec: null,
+            totalGrowSec: null,
             progress: null,
             needWater: false,
             needWeed: false,
@@ -598,9 +606,11 @@ export class BotController {
             id: idNum,
             unlocked,
             cropName: null,
+            cropExp: null,
             phase: null,
             phaseName: null,
             timeLeftSec: null,
+            totalGrowSec: null,
             progress: null,
             needWater: false,
             needWeed: false,
@@ -623,6 +633,11 @@ export class BotController {
         const firstAt = firstPhase ? toTimeSec(firstPhase.begin_time) : 0;
         const matureAt = mature ? toTimeSec(mature.begin_time) : 0;
         const timeLeftSec = matureAt > 0 ? Math.max(0, matureAt - nowSec) : null;
+        const totalGrowSec = firstAt > 0 && matureAt > firstAt ? matureAt - firstAt : null;
+        const plantId = Number(plant.id ?? 0);
+        const rawCropExp =
+          typeof getPlantExp === "function" && Number.isFinite(plantId) && plantId > 0 ? Number(getPlantExp(plantId)) : NaN;
+        const cropExp = Number.isFinite(rawCropExp) && rawCropExp > 0 ? rawCropExp : null;
         
         let progress: number | null = null;
         
@@ -666,9 +681,11 @@ export class BotController {
           id: idNum,
           unlocked,
           cropName: (plant.name && String(plant.name).trim()) || null,
+          cropExp,
           phase: phaseVal,
           phaseName,
           timeLeftSec,
+          totalGrowSec,
           progress,
           needWater,
           needWeed,
@@ -814,6 +831,9 @@ export class BotController {
       getCurrentPhase?: (phases: unknown, debug?: boolean, landLabel?: string) => unknown;
       getLastAllLandsReply?: () => unknown;
       getLastFarmSummary: () => unknown;
+    };
+    const gameConfigMod = this.require(path.join(this.projectRoot, "src", "gameConfig.js")) as {
+      getPlantExp?: (plantId: number) => number;
     };
     const friendMod = this.require(path.join(this.projectRoot, "src", "friend.js")) as {
       startFriendCheckLoop: () => void;
@@ -962,7 +982,7 @@ export class BotController {
           ...next,
           expProgress: expProgress ?? undefined,
         };
-        this.updateFarmViews({ farmMod, utilsMod });
+        this.updateFarmViews({ farmMod, gameConfigMod, utilsMod });
       this.updateTaskViews({ ...taskMod, toNum: utilsMod.toNum });
       const gold = Number(next.gold ?? 0);
       const exp = Number(next.exp ?? 0);
@@ -987,7 +1007,7 @@ export class BotController {
       }, 1200);
 
       this.onWsClosed = () => {
-        this.updateFarmViews({ farmMod, utilsMod });
+        this.updateFarmViews({ farmMod, gameConfigMod, utilsMod });
       };
       this.onWsClosed();
     });
