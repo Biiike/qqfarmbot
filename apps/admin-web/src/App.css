@@ -1537,26 +1537,28 @@
   margin-bottom: 12px;
 }
 
-.overviewPersonaRow {
-  display: grid;
-  grid-template-columns: 1fr minmax(280px, 1.15fr) 1fr;
-  gap: 12px;
-  align-items: stretch;
+.stats.overviewQuickStats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.levelEtaCard {
-  position: relative;
-  overflow: hidden;
+.levelEtaStandaloneCard {
   background:
-    radial-gradient(circle at 14% 18%, rgba(111, 255, 184, 0.14), rgba(255, 255, 255, 0.03) 56%),
+    radial-gradient(circle at 12% 16%, rgba(111, 255, 184, 0.15), rgba(255, 255, 255, 0.03) 52%),
     rgb(var(--glass-rgb) / var(--glass-alpha));
 }
 
-.levelEtaHead {
+.levelEtaStandaloneTop {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
+}
+
+.levelEtaValue {
+  margin-top: 0;
+  font-size: 30px;
+  line-height: 1.12;
+  font-weight: 800;
 }
 
 .levelEtaBar {
@@ -1776,6 +1778,26 @@
   top: 0;
   z-index: 2;
   backdrop-filter: blur(10px);
+}
+
+.overviewBottomCol {
+  align-self: stretch;
+}
+
+.overviewBottomCard {
+  height: 100%;
+}
+
+.overviewBottomCard .cardBody {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.overviewBottomTable {
+  flex: 1;
+  min-height: 320px;
+  max-height: 320px;
 }
 
 .thead,
@@ -2349,7 +2371,7 @@
   .stats.overviewTopStats {
     grid-template-columns: 1fr 1fr;
   }
-  .overviewPersonaRow {
+  .stats.overviewQuickStats {
     grid-template-columns: 1fr;
   }
   .formGrid {
@@ -2358,6 +2380,10 @@
   .tableTools {
     flex-direction: column;
     align-items: stretch;
+  }
+  .overviewBottomTable {
+    min-height: 0;
+    max-height: 300px;
   }
   .tableTools .toggle {
     margin-left: 0;
@@ -2526,6 +2552,9 @@
   }
   .levelEtaBar {
     height: 7px;
+  }
+  .levelEtaValue {
+    font-size: 22px;
   }
   .tableCompact .trow {
     font-size: 12px;

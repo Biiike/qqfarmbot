@@ -158,6 +158,9 @@ function estimateLevelEtaByHarvestEvents(
     return gained;
   };
 
+  const firstRoundExp = schedules.reduce((sum, s) => sum + s.exp, 0);
+  const allMatureSec = schedules.reduce((maxSec, s) => Math.max(maxSec, s.firstSec), 0);
+
   let lo = 0;
   let hi = 60;
   const maxHorizonSec = 365 * 24 * 3600;
@@ -171,7 +174,7 @@ function estimateLevelEtaByHarvestEvents(
   }
 
   const etaSec = lo;
-  const expPerHour = calcGainUntil(3600);
+  const expPerHour = allMatureSec > 0 ? (firstRoundExp / allMatureSec) * 3600 : firstRoundExp * 3600;
   return { sec: etaSec, expPerHour };
 }
 
@@ -1009,6 +1012,46 @@ export function DashboardPage(): React.JSX.Element {
               title={
                 <span className="titleWithIcon">
                   <Icon name="pulse" />
+                  <span>距离升级</span>
+                </span>
+              }
+              subtitle={snapshot ? `更新时间 ${formatDateTime(snapshot.ts)}` : "等待数据推送..."}
+              className="compactCard levelEtaStandaloneCard"
+            >
+              <div className="levelEtaStandaloneTop">
+                <div className="statV levelEtaValue">
+                  {!user
+                    ? "—"
+                    : levelProgress == null
+                      ? `经验 ${formatGold(user.exp)}`
+                      : `还差 ${Math.max(0, Math.floor(levelProgress.left))} 点(${Math.floor(levelProgress.cur)}/${Math.floor(levelProgress.need)})`}
+                </div>
+                {levelProgressPct != null ? <span className="chip">{levelProgressPct.toFixed(1)}%</span> : null}
+              </div>
+
+              {levelProgressPct != null ? (
+                <div className="levelEtaBar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.floor(levelProgressPct)}>
+                  <div className="levelEtaBarFill" style={{ width: `${levelProgressPct}%` }} />
+                </div>
+              ) : null}
+
+              {user && levelProgress ? (
+                <div className="muted levelEtaMeta">
+                  {levelEta
+                    ? levelEta.source === "event"
+                      ? `按当前作物至首轮全成熟估算，约 ${formatEta(levelEta.sec)} 升级（预计 ${Math.max(0, Math.floor(levelEta.expPerHour))} 经验/小时）`
+                      : `按当前效率，约 ${formatEta(levelEta.sec)} 升级（${Math.max(0, Math.floor(levelEta.expPerHour))} 经验/小时）`
+                    : "经验增长数据不足，暂无法估算升级时间"}
+                </div>
+              ) : null}
+            </GlassCard>
+          </div>
+
+          <div className="gridSpan2">
+            <GlassCard
+              title={
+                <span className="titleWithIcon">
+                  <Icon name="pulse" />
                   <span>运行概览（紧凑）</span>
                 </span>
               }
@@ -1026,40 +1069,10 @@ export function DashboardPage(): React.JSX.Element {
                 </div>
               </div>
 
-              <div className="overviewPersonaRow">
+              <div className="stats overviewQuickStats">
                 <div className="stat">
                   <div className="statK">金币</div>
                   <div className="statV">{user ? formatGold(user.gold) : "—"}</div>
-                </div>
-
-                <div className="stat levelEtaCard">
-                  <div className="levelEtaHead">
-                    <div className="statK">距离升级</div>
-                    {levelProgressPct != null ? <span className="chip">{levelProgressPct.toFixed(1)}%</span> : null}
-                  </div>
-                  <div className="statV">
-                    {!user
-                      ? "—"
-                      : levelProgress == null
-                        ? `经验 ${formatGold(user.exp)}`
-                        : `还差 ${Math.max(0, Math.floor(levelProgress.left))} 点(${Math.floor(levelProgress.cur)}/${Math.floor(levelProgress.need)})`}
-                  </div>
-
-                  {levelProgressPct != null ? (
-                    <div className="levelEtaBar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.floor(levelProgressPct)}>
-                      <div className="levelEtaBarFill" style={{ width: `${levelProgressPct}%` }} />
-                    </div>
-                  ) : null}
-
-                  {user && levelProgress ? (
-                    <div className="muted levelEtaMeta">
-                      {levelEta
-                        ? levelEta.source === "event"
-                          ? `按当前地块成熟时间模拟，约 ${formatEta(levelEta.sec)} 升级（未来1小时约 ${Math.max(0, Math.floor(levelEta.expPerHour))} 经验）`
-                          : `按当前效率，约 ${formatEta(levelEta.sec)} 升级（${Math.max(0, Math.floor(levelEta.expPerHour))} 经验/小时）`
-                        : "经验增长数据不足，暂无法估算升级时间"}
-                    </div>
-                  ) : null}
                 </div>
 
                 <div className="stat">
@@ -1195,7 +1208,7 @@ export function DashboardPage(): React.JSX.Element {
             </GlassCard>
           </div>
 
-          <div>
+          <div className="overviewBottomCol">
             <GlassCard
               title={
                 <span className="titleWithIcon">
@@ -1205,9 +1218,9 @@ export function DashboardPage(): React.JSX.Element {
               }
               subtitle={counters ? `更新时间 ${formatDateTime(counters.updatedAt)}` : "等待统计..."}
               right={<span className="chip">累计</span>}
-              className="compactCard"
+              className="compactCard overviewBottomCard"
             >
-              <div className="table tableScrollable">
+              <div className="table tableScrollable overviewBottomTable">
                 <div className="thead">
                   <div>操作</div>
                   <div>次数</div>
@@ -1289,7 +1302,7 @@ export function DashboardPage(): React.JSX.Element {
             </GlassCard>
           </div>
 
-          <div>
+          <div className="overviewBottomCol">
             <GlassCard
               title={
                 <span className="titleWithIcon">
@@ -1298,9 +1311,9 @@ export function DashboardPage(): React.JSX.Element {
                 </span>
               }
               subtitle="按收获/偷菜累计（从日志解析）"
-              className="compactCard"
+              className="compactCard overviewBottomCard"
             >
-              <div className="table cropTable tableScrollable">
+              <div className="table cropTable tableScrollable overviewBottomTable">
                 <div className="thead">
                   <div>作物</div>
                   <div>数量</div>
