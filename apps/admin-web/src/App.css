@@ -1532,6 +1532,55 @@
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.stats.overviewTopStats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+.overviewPersonaRow {
+  display: grid;
+  grid-template-columns: 1fr minmax(280px, 1.15fr) 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.levelEtaCard {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 14% 18%, rgba(111, 255, 184, 0.14), rgba(255, 255, 255, 0.03) 56%),
+    rgb(var(--glass-rgb) / var(--glass-alpha));
+}
+
+.levelEtaHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.levelEtaBar {
+  margin-top: 8px;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.levelEtaBarFill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(111, 255, 184, 0.42), rgba(111, 255, 184, 0.95), rgba(111, 255, 184, 0.42));
+  transition: width 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.levelEtaMeta {
+  margin-top: 8px;
+  line-height: 1.35;
+}
+
 .stat {
   padding: 12px 12px 10px 12px;
   border-radius: 16px;
@@ -2297,6 +2346,12 @@
   .stats.statsCompact {
     grid-template-columns: 1fr 1fr;
   }
+  .stats.overviewTopStats {
+    grid-template-columns: 1fr 1fr;
+  }
+  .overviewPersonaRow {
+    grid-template-columns: 1fr;
+  }
   .formGrid {
     grid-template-columns: 1fr;
   }
@@ -2468,6 +2523,9 @@
   }
   .statV {
     font-size: 13px;
+  }
+  .levelEtaBar {
+    height: 7px;
   }
   .tableCompact .trow {
     font-size: 12px;

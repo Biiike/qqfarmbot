@@ -171,7 +171,7 @@ function estimateLevelEtaByHarvestEvents(
   }
 
   const etaSec = lo;
-  const expPerHour = etaSec > 0 ? (leftExp / etaSec) * 3600 : 0;
+  const expPerHour = calcGainUntil(3600);
   return { sec: etaSec, expPerHour };
 }
 
@@ -654,6 +654,13 @@ export function DashboardPage(): React.JSX.Element {
     return { cur, need, left: Math.max(0, left) };
   }, [user]);
 
+  const levelProgressPct = useMemo(() => {
+    if (!levelProgress) return null;
+    if (!Number.isFinite(levelProgress.cur) || !Number.isFinite(levelProgress.need) || levelProgress.need <= 0) return null;
+    const pct = (levelProgress.cur / levelProgress.need) * 100;
+    return Math.min(100, Math.max(0, pct));
+  }, [levelProgress]);
+
   const levelEta = useMemo(() => {
     if (!levelProgress || !snapshot) return null;
     if (levelProgress.left <= 0) return { sec: 0, expPerHour: 0, source: "done" as const };
@@ -1008,7 +1015,7 @@ export function DashboardPage(): React.JSX.Element {
               subtitle={snapshot ? `更新时间 ${formatDateTime(snapshot.ts)}` : "等待数据推送..."}
               className="compactCard"
             >
-              <div className="stats statsCompact">
+              <div className="stats overviewTopStats">
                 <div className="stat">
                   <div className="statK">Uptime</div>
                   <div className="statV">{snapshot ? formatUptime(snapshot.stats.uptimeSec) : "—"}</div>
@@ -1017,16 +1024,19 @@ export function DashboardPage(): React.JSX.Element {
                   <div className="statK">Memory</div>
                   <div className="statV">{snapshot ? formatBytes(snapshot.stats.memoryRss) : "—"}</div>
                 </div>
+              </div>
+
+              <div className="overviewPersonaRow">
                 <div className="stat">
                   <div className="statK">金币</div>
                   <div className="statV">{user ? formatGold(user.gold) : "—"}</div>
                 </div>
-                <div className="stat">
-                  <div className="statK">账号等级</div>
-                  <div className="statV">{user ? `${user.name} · Lv.${user.level}` : "—"}</div>
-                </div>
-                <div className="stat">
-                  <div className="statK">距离升级</div>
+
+                <div className="stat levelEtaCard">
+                  <div className="levelEtaHead">
+                    <div className="statK">距离升级</div>
+                    {levelProgressPct != null ? <span className="chip">{levelProgressPct.toFixed(1)}%</span> : null}
+                  </div>
                   <div className="statV">
                     {!user
                       ? "—"
@@ -1034,15 +1044,27 @@ export function DashboardPage(): React.JSX.Element {
                         ? `经验 ${formatGold(user.exp)}`
                         : `还差 ${Math.max(0, Math.floor(levelProgress.left))} 点(${Math.floor(levelProgress.cur)}/${Math.floor(levelProgress.need)})`}
                   </div>
+
+                  {levelProgressPct != null ? (
+                    <div className="levelEtaBar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.floor(levelProgressPct)}>
+                      <div className="levelEtaBarFill" style={{ width: `${levelProgressPct}%` }} />
+                    </div>
+                  ) : null}
+
                   {user && levelProgress ? (
-                    <div className="muted" style={{ marginTop: 4, lineHeight: 1.3 }}>
+                    <div className="muted levelEtaMeta">
                       {levelEta
                         ? levelEta.source === "event"
-                          ? `按当前地块成熟时间模拟，约 ${formatEta(levelEta.sec)} 升级（${Math.max(0, Math.floor(levelEta.expPerHour))} 经验/小时）`
+                          ? `按当前地块成熟时间模拟，约 ${formatEta(levelEta.sec)} 升级（未来1小时约 ${Math.max(0, Math.floor(levelEta.expPerHour))} 经验）`
                           : `按当前效率，约 ${formatEta(levelEta.sec)} 升级（${Math.max(0, Math.floor(levelEta.expPerHour))} 经验/小时）`
                         : "经验增长数据不足，暂无法估算升级时间"}
                     </div>
                   ) : null}
+                </div>
+
+                <div className="stat">
+                  <div className="statK">账号等级</div>
+                  <div className="statV">{user ? `${user.name} · Lv.${user.level}` : "—"}</div>
                 </div>
               </div>
             </GlassCard>
