@@ -120,6 +120,61 @@ function formatEta(sec: number): string {
   return `${Math.max(1, m)}分钟`;
 }
 
+function estimateLevelEtaByHarvestEvents(
+  leftExp: number,
+  lands: Array<{
+    unlocked: boolean;
+    cropName: string | null;
+    phase: number | null;
+    timeLeftSec: number | null;
+    totalGrowSec: number | null;
+    cropExp: number | null;
+  }>
+): { sec: number; expPerHour: number } | null {
+  if (!Number.isFinite(leftExp) || leftExp <= 0) return { sec: 0, expPerHour: 0 };
+
+  const schedules: Array<{ firstSec: number; cycleSec: number; exp: number }> = [];
+  for (const land of lands) {
+    if (!land.unlocked) continue;
+    if (land.cropName == null || land.phase === 7) continue;
+    const exp = Number(land.cropExp);
+    const cycleSec = Number(land.totalGrowSec);
+    const firstSecRaw = Number(land.timeLeftSec);
+    if (!Number.isFinite(exp) || exp <= 0) continue;
+    if (!Number.isFinite(cycleSec) || cycleSec <= 0) continue;
+    if (!Number.isFinite(firstSecRaw) || firstSecRaw < 0) continue;
+    schedules.push({ firstSec: Math.floor(firstSecRaw), cycleSec: Math.floor(cycleSec), exp });
+  }
+  if (!schedules.length) return null;
+
+  const calcGainUntil = (tSec: number): number => {
+    if (!Number.isFinite(tSec) || tSec < 0) return 0;
+    let gained = 0;
+    for (const s of schedules) {
+      if (tSec < s.firstSec) continue;
+      const cycles = Math.floor((tSec - s.firstSec) / s.cycleSec) + 1;
+      if (cycles > 0) gained += cycles * s.exp;
+    }
+    return gained;
+  };
+
+  let lo = 0;
+  let hi = 60;
+  const maxHorizonSec = 365 * 24 * 3600;
+  while (hi < maxHorizonSec && calcGainUntil(hi) < leftExp) hi *= 2;
+  if (calcGainUntil(hi) < leftExp) return null;
+
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (calcGainUntil(mid) >= leftExp) hi = mid;
+    else lo = mid + 1;
+  }
+
+  const etaSec = lo;
+  const expPerHour = etaSec > 0 ? (leftExp / etaSec) * 3600 : 0;
+  return { sec: etaSec, expPerHour };
+}
+
 export function DashboardPage(): React.JSX.Element {
   const data = useData();
   const { snapshot } = data;
@@ -603,26 +658,13 @@ export function DashboardPage(): React.JSX.Element {
     if (!levelProgress || !snapshot) return null;
     if (levelProgress.left <= 0) return { sec: 0, expPerHour: 0, source: "done" as const };
 
-    const landItems = snapshot.bot?.lands?.items ?? [];
-    let cycleExpPerSec = 0;
-    for (const land of landItems) {
-      if (!land?.unlocked) continue;
-      if (land.phase === 7 || land.cropName == null) continue;
-      const exp = Number(land.cropExp);
-      const growSec = Number(land.totalGrowSec);
-      if (!Number.isFinite(exp) || exp <= 0) continue;
-      if (!Number.isFinite(growSec) || growSec <= 0) continue;
-      cycleExpPerSec += exp / growSec;
-    }
-    if (Number.isFinite(cycleExpPerSec) && cycleExpPerSec > 0) {
-      const etaSec = levelProgress.left / cycleExpPerSec;
-      if (Number.isFinite(etaSec) && etaSec >= 0) {
-        return {
-          sec: etaSec,
-          expPerHour: cycleExpPerSec * 3600,
-          source: "cycle" as const,
-        };
-      }
+    const eventEstimate = estimateLevelEtaByHarvestEvents(levelProgress.left, snapshot.bot?.lands?.items ?? []);
+    if (eventEstimate) {
+      return {
+        sec: eventEstimate.sec,
+        expPerHour: eventEstimate.expPerHour,
+        source: "event" as const,
+      };
     }
 
     if (!counters) return null;
@@ -995,8 +1037,8 @@ export function DashboardPage(): React.JSX.Element {
                   {user && levelProgress ? (
                     <div className="muted" style={{ marginTop: 4, lineHeight: 1.3 }}>
                       {levelEta
-                        ? levelEta.source === "cycle"
-                          ? `按当前作物成熟周期，约 ${formatEta(levelEta.sec)} 升级（${Math.max(0, Math.floor(levelEta.expPerHour))} 经验/小时）`
+                        ? levelEta.source === "event"
+                          ? `按当前地块成熟时间模拟，约 ${formatEta(levelEta.sec)} 升级（${Math.max(0, Math.floor(levelEta.expPerHour))} 经验/小时）`
                           : `按当前效率，约 ${formatEta(levelEta.sec)} 升级（${Math.max(0, Math.floor(levelEta.expPerHour))} 经验/小时）`
                         : "经验增长数据不足，暂无法估算升级时间"}
                     </div>
