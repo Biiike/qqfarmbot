@@ -903,11 +903,28 @@
 
 .landTop {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   position: relative;
   z-index: 1;
+}
+
+.landCropLabel {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+}
+
+.cropIcon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.45));
 }
 
 .landName {

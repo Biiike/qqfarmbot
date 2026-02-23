@@ -9,6 +9,137 @@ import waterPng from "../assets/水.png";
 import weedPng from "../assets/草.png";
 import bugPng from "../assets/虫.png";
 
+const CROP_BASE = "https://raw.githubusercontent.com/linguo2625469/FarmCalc/main/seed_images_named/";
+const CROP_ICONS: Record<string, string> = {
+  "草莓": CROP_BASE + "20001_草莓_Crop_1_Seed.png",
+  "胡萝卜": CROP_BASE + "20003_胡萝卜_Crop_3_Seed.png",
+  "玉米": CROP_BASE + "20004_玉米_Crop_4_Seed.png",
+  "土豆": CROP_BASE + "20005_土豆_Crop_5_Seed.png",
+  "茄子": CROP_BASE + "20006_茄子_Crop_6_Seed.png",
+  "番茄": CROP_BASE + "20007_番茄_Crop_7_Seed.png",
+  "豌豆": CROP_BASE + "20008_豌豆_Crop_8_Seed.png",
+  "辣椒": CROP_BASE + "20009_辣椒_Crop_9_Seed.png",
+  "南瓜": CROP_BASE + "20010_南瓜_Crop_10_Seed.png",
+  "苹果": CROP_BASE + "20011_苹果_Crop_11_Seed.png",
+  "葡萄": CROP_BASE + "20013_葡萄_Crop_13_Seed.png",
+  "西瓜": CROP_BASE + "20014_西瓜_Crop_14_Seed.png",
+  "香蕉": CROP_BASE + "20015_香蕉_Crop_15_Seed.png",
+  "菠萝蜜": CROP_BASE + "20016_菠萝蜜_Crop_16_Seed.png",
+  "桃子": CROP_BASE + "20018_桃子_Crop_18_Seed.png",
+  "橙子": CROP_BASE + "20019_橙子_Crop_19_Seed.png",
+  "鳄梨": CROP_BASE + "20022_鳄梨_Crop_22_Seed.png",
+  "石榴": CROP_BASE + "20023_石榴_Crop_23_Seed.png",
+  "柚子": CROP_BASE + "20026_柚子_Crop_26_Seed.png",
+  "菠萝": CROP_BASE + "20027_菠萝_Crop_27_Seed.png",
+  "椰子": CROP_BASE + "20029_椰子_Crop_29_Seed.png",
+  "葫芦": CROP_BASE + "20031_葫芦_Crop_31_Seed.png",
+  "火龙果": CROP_BASE + "20033_火龙果_Crop_33_Seed.png",
+  "樱桃": CROP_BASE + "20034_樱桃_Crop_34_Seed.png",
+  "荔枝": CROP_BASE + "20035_荔枝_Crop_35_Seed.png",
+  "箬竹": CROP_BASE + "20036_箬竹_Crop_36_Seed.png",
+  "莲藕": CROP_BASE + "20037_莲藕_Crop_37_Seed.png",
+  "木瓜": CROP_BASE + "20038_木瓜_Crop_38_Seed.png",
+  "杨桃": CROP_BASE + "20039_杨桃_Crop_39_Seed.png",
+  "红玫瑰": CROP_BASE + "20041_红玫瑰_Crop_41_Seed.png",
+  "柠檬": CROP_BASE + "20042_柠檬_Crop_42_Seed.png",
+  "无花果": CROP_BASE + "20043_无花果_Crop_43_Seed.png",
+  "丝瓜": CROP_BASE + "20044_丝瓜_Crop_44_Seed.png",
+  "猕猴桃": CROP_BASE + "20045_猕猴桃_Crop_45_Seed.png",
+  "甘蔗": CROP_BASE + "20047_甘蔗_Crop_47_Seed.png",
+  "杨梅": CROP_BASE + "20048_杨梅_Crop_48_Seed.png",
+  "花生": CROP_BASE + "20049_花生_Crop_49_Seed.png",
+  "蘑菇": CROP_BASE + "20050_蘑菇_Crop_50_Seed.png",
+  "红枣": CROP_BASE + "20051_红枣_Crop_51_Seed.png",
+  "金针菇": CROP_BASE + "20052_金针菇_Crop_52_Seed.png",
+  "桂圆": CROP_BASE + "20053_桂圆_Crop_53_Seed.png",
+  "梨": CROP_BASE + "20054_梨_Crop_54_Seed.png",
+  "枇杷": CROP_BASE + "20055_枇杷_Crop_55_Seed.png",
+  "哈密瓜": CROP_BASE + "20056_哈密瓜_Crop_56_Seed.png",
+  "芒果": CROP_BASE + "20057_芒果_Crop_57_Seed.png",
+  "榴莲": CROP_BASE + "20058_榴莲_Crop_58_Seed.png",
+  "大白菜": CROP_BASE + "20059_大白菜_Crop_59_Seed.png",
+  "水稻": CROP_BASE + "20060_水稻_Crop_60_Seed.png",
+  "小麦": CROP_BASE + "20061_小麦_Crop_61_Seed.png",
+  "四叶草": CROP_BASE + "20062_四叶草_Crop_62_Seed.png",
+  "苦瓜": CROP_BASE + "20063_苦瓜_Crop_63_Seed.png",
+  "大葱": CROP_BASE + "20064_大葱_Crop_64_Seed.png",
+  "大蒜": CROP_BASE + "20065_大蒜_Crop_65_Seed.png",
+  "鲜姜": CROP_BASE + "20066_鲜姜_Crop_66_Seed.png",
+  "香瓜": CROP_BASE + "20067_香瓜_Crop_67_Seed.png",
+  "冬瓜": CROP_BASE + "20068_冬瓜_Crop_68_Seed.png",
+  "黄豆": CROP_BASE + "20070_黄豆_Crop_70_Seed.png",
+  "小白菜": CROP_BASE + "20071_小白菜_Crop_71_Seed.png",
+  "榛子": CROP_BASE + "20072_榛子_Crop_72_Seed.png",
+  "菠菜": CROP_BASE + "20073_菠菜_Crop_73_Seed.png",
+  "金桔": CROP_BASE + "20074_金桔_Crop_74_Seed.png",
+  "桑葚": CROP_BASE + "20075_桑葚_Crop_75_Seed.png",
+  "山竹": CROP_BASE + "20076_山竹_Crop_76_Seed.png",
+  "蓝莓": CROP_BASE + "20077_蓝莓_Crop_77_Seed.png",
+  "杏子": CROP_BASE + "20078_杏子_Crop_78_Seed.png",
+  "番石榴": CROP_BASE + "20079_番石榴_Crop_79_Seed.png",
+  "月柿": CROP_BASE + "20080_月柿_Crop_80_Seed.png",
+  "红毛丹": CROP_BASE + "20083_红毛丹_Crop_83_Seed.png",
+  "芭蕉": CROP_BASE + "20084_芭蕉_Crop_84_Seed.png",
+  "番荔枝": CROP_BASE + "20085_番荔枝_Crop_85_Seed.png",
+  "橄榄": CROP_BASE + "20086_橄榄_Crop_86_Seed.png",
+  "百香果": CROP_BASE + "20087_百香果_Crop_87_Seed.png",
+  "灯笼果": CROP_BASE + "20088_灯笼果_Crop_88_Seed.png",
+  "芦荟": CROP_BASE + "20089_芦荟_Crop_89_Seed.png",
+  "薄荷": CROP_BASE + "20090_薄荷_Crop_90_Seed.png",
+  "山楂": CROP_BASE + "20091_山楂_Crop_91_Seed.png",
+  "栗子": CROP_BASE + "20095_栗子_Crop_95_Seed.png",
+  "生菜": CROP_BASE + "20096_生菜_Crop_96_Seed.png",
+  "黄瓜": CROP_BASE + "20097_黄瓜_Crop_97_Seed.png",
+  "花菜": CROP_BASE + "20098_花菜_Crop_98_Seed.png",
+  "油菜": CROP_BASE + "20099_油菜_Crop_99_Seed.png",
+  "竹笋": CROP_BASE + "20100_竹笋_Crop_100_Seed.png",
+  "天香百合": CROP_BASE + "20103_天香百合_Crop_103_Seed.png",
+  "非洲菊": CROP_BASE + "20104_非洲菊_Crop_104_Seed.png",
+  "小雏菊": CROP_BASE + "20105_小雏菊_Crop_105_Seed.png",
+  "满天星": CROP_BASE + "20110_满天星_Crop_110_Seed.png",
+  "曼陀罗华": CROP_BASE + "20116_曼陀罗华_Crop_116_Seed.png",
+  "蒲公英": CROP_BASE + "20120_蒲公英_Crop_120_Seed.png",
+  "曼珠沙华": CROP_BASE + "20126_曼珠沙华_Crop_126_Seed.png",
+  "茉莉花": CROP_BASE + "20128_茉莉花_Crop_128_Seed.png",
+  "火绒草": CROP_BASE + "20135_火绒草_Crop_135_Seed.png",
+  "花香根鸢尾": CROP_BASE + "20141_花香根鸢尾_Crop_141_Seed.png",
+  "虞美人": CROP_BASE + "20142_虞美人_Crop_142_Seed.png",
+  "含羞草": CROP_BASE + "20143_含羞草_Crop_143_Seed.png",
+  "向日葵": CROP_BASE + "20145_向日葵_Crop_145_Seed.png",
+  "牵牛花": CROP_BASE + "20147_牵牛花_Crop_147_Seed.png",
+  "秋菊（黄色）": CROP_BASE + "20161_秋菊（黄色）_Crop_161_Seed.png",
+  "秋菊（红色）": CROP_BASE + "20162_秋菊（红色）_Crop_162_Seed.png",
+  "天山雪莲": CROP_BASE + "20201_天山雪莲_Crop_201_Seed.png",
+  "金边灵芝": CROP_BASE + "20202_金边灵芝_Crop_202_Seed.png",
+  "人参": CROP_BASE + "20204_人参_Crop_204_Seed.png",
+  "瓶子树": CROP_BASE + "20218_瓶子树_Crop_218_Seed.png",
+  "猪笼草": CROP_BASE + "20220_猪笼草_Crop_220_Seed.png",
+  "天堂鸟": CROP_BASE + "20221_天堂鸟_Crop_221_Seed.png",
+  "豹皮花": CROP_BASE + "20222_豹皮花_Crop_222_Seed.png",
+  "宝华玉兰": CROP_BASE + "20225_宝华玉兰_Crop_225_Seed.png",
+  "依米花": CROP_BASE + "20226_依米花_Crop_226_Seed.png",
+  "大王花": CROP_BASE + "20227_大王花_Crop_227_Seed.png",
+  "人参果": CROP_BASE + "20228_人参果_Crop_228_Seed.png",
+  "何首乌": CROP_BASE + "20229_何首乌_Crop_229_Seed.png",
+  "金花茶": CROP_BASE + "20235_金花茶_Crop_235_Seed.png",
+  "似血杜鹃": CROP_BASE + "20242_似血杜鹃_Crop_242_Seed.png",
+  "银莲花": CROP_BASE + "20259_银莲花_Crop_259_Seed.png",
+  "韭菜": CROP_BASE + "20305_韭菜_Crop_305_Seed.png",
+  "芹菜": CROP_BASE + "20306_芹菜_Crop_306_Seed.png",
+  "核桃": CROP_BASE + "20308_核桃_Crop_308_Seed.png",
+  "迎春花": CROP_BASE + "20396_迎春花_Crop_396_Seed.png",
+  "李子": CROP_BASE + "20413_李子_Crop_413_Seed.png",
+  "睡莲": CROP_BASE + "20442_睡莲_Crop_442_Seed.png",
+  "新春红包": CROP_BASE + "21542_新春红包_Crop_1542_Seed.png",
+  "哈哈南瓜": CROP_BASE + "29998_哈哈南瓜_Crop_9998_Seed.png",
+  "白萝卜": CROP_BASE + "29999_白萝卜_Crop_2_Seed.png",
+};
+
+function getCropIcon(name: string | null): string | undefined {
+  if (!name) return undefined;
+  return CROP_ICONS[name.trim()];
+}
+
 type Config = {
   selfIntervalSecMin: number;
   selfIntervalSecMax: number;
@@ -509,13 +640,16 @@ export function LandsPage(): React.JSX.Element {
             </div>
           ) : (
             <div className="landsGrid">
-              {(lands?.items ?? []).map((x) => (
+              {(lands?.items ?? []).map((x) => { const cropIcon = getCropIcon(x.cropName); return (
                 <div 
                   key={x.id} 
                   className={["landTile", x.unlocked ? "unlocked" : "locked"].join(" ")}
                 >
                   <div className="landTop">
-                    <div className="landName">{x.cropName ?? "空闲"}</div>
+                    <div className="landCropLabel">
+                      {cropIcon ? <img className="cropIcon" src={cropIcon} alt="" aria-hidden="true" /> : null}
+                      <div className="landName">{x.cropName ?? "空闲"}</div>
+                    </div>
                     <div className="landId">#{x.id}</div>
                   </div>
                   <div className="landSub">
@@ -555,7 +689,7 @@ export function LandsPage(): React.JSX.Element {
                     </div>
                   ) : null}
                 </div>
-              ))}
+              ); })}
             </div>
           )}
         </GlassCard>
