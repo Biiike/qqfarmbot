@@ -187,7 +187,7 @@ export function DashboardPage(): React.JSX.Element {
   const [actionError, setActionError] = useState<string | null>(null);
   const [flashKeys, setFlashKeys] = useState<Record<string, boolean>>({});
   const clearFlashTimerRef = useRef<number | null>(null);
-  const [activeTab, setActiveTab] = useState<DashboardTab>("logs");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
 
   const [logSelectedId, setLogSelectedId] = useState<string | null>(null);
   const [logAutoScroll, setLogAutoScroll] = useState(true);
@@ -1007,7 +1007,7 @@ export function DashboardPage(): React.JSX.Element {
 
       {activeTab === "overview" ? (
         <div className="grid">
-          <div className="gridSpan2">
+          <div>
             <GlassCard
               title={
                 <span className="titleWithIcon">
@@ -1047,7 +1047,7 @@ export function DashboardPage(): React.JSX.Element {
             </GlassCard>
           </div>
 
-          <div className="gridSpan2">
+          <div>
             <GlassCard
               title={
                 <span className="titleWithIcon">
