@@ -1007,7 +1007,7 @@ export function DashboardPage(): React.JSX.Element {
 
       {activeTab === "overview" ? (
         <div className="grid">
-          <div>
+          <div className="overviewTopCard">
             <GlassCard
               title={
                 <span className="titleWithIcon">
@@ -1047,7 +1047,7 @@ export function DashboardPage(): React.JSX.Element {
             </GlassCard>
           </div>
 
-          <div>
+          <div className="overviewTopCard">
             <GlassCard
               title={
                 <span className="titleWithIcon">

@@ -397,6 +397,20 @@
   grid-column: 1 / -1;
 }
 
+.overviewTopCard {
+  min-height: 0;
+}
+
+.overviewTopCard .cardShell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.overviewTopCard .cardBody {
+  flex: 1;
+}
+
 .dash {
   display: flex;
   flex-direction: column;

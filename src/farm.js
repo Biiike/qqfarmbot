@@ -259,6 +259,7 @@ async function upgradeLand(landIds) {
             const { body: replyBody } = await sendMsgAsync('gamepb.plantpb.PlantService', 'UpgradeLand', body);
             results.push(types.UpgradeLandReply.decode(replyBody));
             successCount++;
+            blockedUpgradeLandUntilMs.delete(normalizedLandId);
         } catch (e) {
             if (isUpgradeParamError(e)) {
                 blockedUpgradeLandUntilMs.set(normalizedLandId, Date.now() + UPGRADE_RETRY_COOLDOWN_MS);
@@ -777,15 +778,14 @@ async function checkFarm() {
         // 自动升级红土
         if (CONFIG.autoUpgradeRedLand) {
             const upgradeableLands = lands
-                .filter(land => {
-                    if (!land || !land.unlocked || !land.could_upgrade) return false;
-                    const phases = land.plant && Array.isArray(land.plant.phases) ? land.plant.phases : [];
-                    return phases.length === 0;
-                })
+                .filter(land => land && land.unlocked && land.could_upgrade)
                 .map(land => normalizeLandId(land.id))
                 .filter(id => id > 0);
             if (upgradeableLands.length > 0) {
                 try {
+                    for (const landId of upgradeableLands) {
+                        blockedUpgradeLandUntilMs.delete(landId);
+                    }
                     const { successCount } = await upgradeLand(upgradeableLands);
                     if (successCount > 0) {
                         upgradeableLands.forEach(landId => {
