@@ -635,6 +635,15 @@ export function createApp(services: Services): express.Express {
         normalized.url = nested.url;
       }
 
+      if (
+        !normalized.url &&
+        isFarmPreset(body.preset) &&
+        typeof normalized.qrsig === "string" &&
+        normalized.qrsig.trim()
+      ) {
+        normalized.url = `https://h5.qzone.qq.com/qqq/code/${encodeURIComponent(normalized.qrsig.trim())}?_proxy=1&from=ide`;
+      }
+
       if (!normalized.qrcode) {
         const directQr =
           (typeof normalized.image === "string" && normalized.image.trim()) ||
@@ -651,8 +660,8 @@ export function createApp(services: Services): express.Express {
         normalized.success !== false &&
         typeof normalized.qrsig === "string" &&
         normalized.qrsig.trim() &&
-        typeof normalized.qrcode === "string" &&
-        normalized.qrcode.trim()
+        ((typeof normalized.qrcode === "string" && normalized.qrcode.trim()) ||
+          (typeof normalized.url === "string" && normalized.url.trim()))
       ) {
         res.json(normalized);
         return;

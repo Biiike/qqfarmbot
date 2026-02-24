@@ -413,13 +413,17 @@ export function DashboardPage(): React.JSX.Element {
         token: auth.token,
         body: { preset: "farm" },
       });
-      if (!data?.success || !data.qrsig || !data.qrcode) {
+      const qrsig = typeof data?.qrsig === "string" ? data.qrsig.trim() : "";
+      const qrcode = typeof data?.qrcode === "string" ? data.qrcode.trim() : "";
+      const url = typeof data?.url === "string" ? data.url.trim() : "";
+      const qrImageSrc = qrcode || (url ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}` : "");
+      if (!data?.success || !qrsig || !qrImageSrc) {
         setQrError("二维码获取失败");
         return;
       }
-      setQrImage(data.qrcode);
-      setQrQrsig(data.qrsig);
-      startQrPolling(data.qrsig);
+      setQrImage(qrImageSrc);
+      setQrQrsig(qrsig);
+      startQrPolling(qrsig);
     } catch (err) {
       const apiErr = err as ApiError;
       if (apiErr?.status === 401 || apiErr?.code === "UNAUTHORIZED") {
@@ -432,6 +436,10 @@ export function DashboardPage(): React.JSX.Element {
       }
       if (apiErr?.code === "QRLIB_UNAVAILABLE") {
         setQrError("扫码服务不可用，请确认 QRLib 已启动");
+        return;
+      }
+      if (apiErr?.code === "QRLIB_UPSTREAM_ERROR") {
+        setQrError(apiErr.message || "二维码服务上游异常，请稍后重试");
         return;
       }
       setQrError("二维码获取失败");
@@ -895,7 +903,18 @@ export function DashboardPage(): React.JSX.Element {
             </div>
             <div className="qrBody">
               <div className="qrImageWrap">
-                {qrImage ? <img className="qrImage" src={qrImage} alt="QR Code" /> : <div className="qrPlaceholder" />}
+                {qrImage ? (
+                  <img
+                    className="qrImage"
+                    src={qrImage}
+                    alt="QR Code"
+                    onError={() => {
+                      setQrError("二维码图片加载失败，请检查网络后重试");
+                    }}
+                  />
+                ) : (
+                  <div className="qrPlaceholder" />
+                )}
               </div>
               <div className="qrMeta">
                 <div className="qrStatus">{qrStatus}</div>
